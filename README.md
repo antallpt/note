@@ -18,15 +18,18 @@ python3 -m venv .venv
 ## Starten
 
 ```sh
-./notiz pfad/zur/notiz.md     # Datei wird beim Speichern angelegt, falls neu
-./notiz                        # öffnet ./Notizen.md
+./note vorlesung-01     # öffnet vorlesung-01.md – wird angelegt, falls nicht vorhanden
+./note pfad/zur/datei.md
+./note                  # öffnet ./Notizen.md
 ```
 
-Praktisch: Alias in `~/.zshrc` eintragen, dann funktioniert `notiz datei.md`
+Ohne Dateiendung wird automatisch `.md` angehängt.
+
+Praktisch: Alias in `~/.zshrc` eintragen, dann funktioniert `note datei`
 aus jedem Verzeichnis:
 
 ```sh
-alias notiz='"/pfad/zu/notiz/notiz"'
+alias note='"/pfad/zu/notiz/note"'
 ```
 
 ## Tastenkürzel

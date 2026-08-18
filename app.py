@@ -4,7 +4,8 @@
 Editor links (normale Navigation, kein Vim), Live-Vorschau rechts
 mit gerenderten Tabellen und Bildern.
 
-Aufruf:  notiz [datei.md]
+Aufruf:  note [datei]   – ohne Endung wird .md angehängt,
+                          die Datei wird angelegt, falls sie fehlt.
 """
 
 from __future__ import annotations
@@ -168,9 +169,20 @@ class NotizApp(App):
         self.title = f"notiz – {self.note_path.name}{marker}"
 
 
+def resolve_note_path(arg: str) -> Path:
+    path = Path(arg).expanduser()
+    if not path.suffix:
+        path = path.with_suffix(".md")
+    path = path.resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        path.touch()
+    return path
+
+
 def main() -> None:
     arg = sys.argv[1] if len(sys.argv) > 1 else "Notizen.md"
-    NotizApp(Path(arg).expanduser().resolve()).run()
+    NotizApp(resolve_note_path(arg)).run()
 
 
 if __name__ == "__main__":
