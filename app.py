@@ -14,10 +14,13 @@ import re
 import sys
 from pathlib import Path
 
+from rich.style import Style
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
+from textual.theme import Theme
 from textual.widgets import Footer, Header, Markdown, TextArea
+from textual.widgets.text_area import TextAreaTheme
 
 try:
     from textual_image.widget import Image
@@ -25,7 +28,46 @@ except Exception:
     Image = None
 
 # Eine Zeile, die nur aus einem Bild-Link besteht: ![Alt](pfad)
-IMAGE_LINE = re.compile(r"^\s*!\[[^\]]*\]\(([^)\s]+)\)\s*$")
+# Leerzeichen im Pfad sind erlaubt, optional in <spitzen Klammern>.
+IMAGE_LINE = re.compile(r"^\s*!\[[^\]]*\]\(<?([^)>]+)>?\)\s*$")
+
+LIGHT_THEME = Theme(
+    name="notiz-light",
+    primary="#5a5a5a",
+    secondary="#7a7a7a",
+    accent="#3a3a3a",
+    foreground="#1f1f1f",
+    background="#f5f5f5",
+    surface="#ffffff",
+    panel="#ececec",
+    success="#4a4a4a",
+    warning="#6a6a6a",
+    error="#8b3a3a",
+    dark=False,
+)
+
+EDITOR_THEME = TextAreaTheme(
+    name="notiz-light",
+    base_style=Style(color="#1f1f1f", bgcolor="#ffffff"),
+    gutter_style=Style(color="#b5b5b5", bgcolor="#f5f5f5"),
+    cursor_style=Style(color="#ffffff", bgcolor="#1f1f1f"),
+    cursor_line_style=Style(bgcolor="#f2f2f2"),
+    cursor_line_gutter_style=Style(color="#8a8a8a", bgcolor="#f2f2f2"),
+    selection_style=Style(bgcolor="#dcdcdc"),
+    bracket_matching_style=Style(bgcolor="#e4e4e4", bold=True),
+    syntax_styles={
+        "heading": Style(color="#111111", bold=True),
+        "bold": Style(color="#1f1f1f", bold=True),
+        "italic": Style(color="#1f1f1f", italic=True),
+        "link": Style(color="#4a4a4a", underline=True),
+        "inline_code": Style(color="#333333", bgcolor="#efefef"),
+        "punctuation.special": Style(color="#9a9a9a"),
+        "punctuation.delimiter": Style(color="#9a9a9a"),
+        "punctuation.bracket": Style(color="#9a9a9a"),
+        "string": Style(color="#4a4a4a"),
+        "comment": Style(color="#9a9a9a", italic=True),
+    },
+)
 
 TABLE_SNIPPET = (
     "\n| Spalte 1 | Spalte 2 |\n"
@@ -43,7 +85,8 @@ class NotizApp(App):
     }
     #preview {
         width: 1fr;
-        border-left: solid $primary;
+        background: $surface;
+        border-left: solid $panel;
         padding: 0 1;
     }
     #preview.hidden {
@@ -91,6 +134,11 @@ class NotizApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        self.register_theme(LIGHT_THEME)
+        self.theme = "notiz-light"
+        editor = self.query_one("#editor", TextArea)
+        editor.register_theme(EDITOR_THEME)
+        editor.theme = "notiz-light"
         self._update_title()
         self.run_worker(self._render_preview(), exclusive=True, group="preview")
 
@@ -123,7 +171,8 @@ class NotizApp(App):
         for line in text.splitlines():
             match = IMAGE_LINE.match(line)
             if match and Image is not None and "://" not in match.group(1):
-                img_path = (base / match.group(1)).expanduser()
+                raw = match.group(1).strip().replace("\\ ", " ")
+                img_path = (base / raw).expanduser()
                 if img_path.is_file():
                     flush()
                     image = Image(str(img_path))
