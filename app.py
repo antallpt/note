@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -100,8 +101,11 @@ if Image is not None:
             self.tooltip = "Klicken: Bild in voller Qualität öffnen"
 
         def on_click(self, event: events.Click) -> None:
-            opener = "open" if sys.platform == "darwin" else "xdg-open"
-            subprocess.Popen([opener, str(self._img_path)])
+            if sys.platform == "win32":
+                os.startfile(str(self._img_path))
+            else:
+                opener = "open" if sys.platform == "darwin" else "xdg-open"
+                subprocess.Popen([opener, str(self._img_path)])
 
 else:
     NoteImage = None
@@ -167,12 +171,34 @@ TABLE_SNIPPET = (
     "|     |     |\n"
 )
 
-CHROME_PATHS = [
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Chromium.app/Contents/MacOS/Chromium",
-    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-]
+def find_chrome() -> str | None:
+    """Findet einen Chromium-basierten Browser für den PDF-Export –
+    macOS-Bundles, Windows-Installationspfade (Edge ist vorinstalliert)
+    und den PATH (Linux)."""
+    candidates = [
+        # macOS
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        # Windows
+        os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
+    ]
+    for path in candidates:
+        if Path(path).is_file():
+            return path
+    for name in (
+        "google-chrome", "google-chrome-stable", "chromium", "chromium-browser",
+        "brave-browser", "microsoft-edge", "msedge", "chrome",
+    ):
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
 
 # Grau-Palette nach der Tailwind-"Neutral"-Skala (reines Grau, kein Blaustich).
 # Hierarchie: Titel dunkelgrau (#262626), Unterüberschriften abgestuft,
@@ -450,24 +476,60 @@ class NotizApp(App):
             return
         self.run_worker(self._pick_image(), group="pick")
 
-    async def _pick_image(self) -> None:
-        self._picking = True
-        try:
+    @staticmethod
+    def _file_dialog_command() -> list[str] | None:
+        """Nativer Bild-Dateidialog je Plattform: Finder (macOS),
+        zenity/kdialog (Linux), Explorer via PowerShell (Windows)."""
+        if sys.platform == "darwin":
             script = (
                 'set p to POSIX path of (choose file of type {"public.image"} '
                 'with prompt "Bild für die Notiz auswählen")\n'
                 "return p"
             )
+            return ["osascript", "-e", script]
+        if sys.platform == "win32":
+            ps = (
+                "Add-Type -AssemblyName System.Windows.Forms;"
+                "$f = New-Object System.Windows.Forms.OpenFileDialog;"
+                "$f.Title = 'Bild für die Notiz auswählen';"
+                "$f.Filter = 'Bilder|*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp';"
+                "if ($f.ShowDialog() -eq 'OK') { Write-Output $f.FileName }"
+            )
+            return ["powershell", "-NoProfile", "-STA", "-Command", ps]
+        if shutil.which("zenity"):
+            return [
+                "zenity", "--file-selection",
+                "--title=Bild für die Notiz auswählen",
+                "--file-filter=Bilder | *.png *.jpg *.jpeg *.gif *.webp *.bmp",
+            ]
+        if shutil.which("kdialog"):
+            return [
+                "kdialog", "--getopenfilename", ".",
+                "*.png *.jpg *.jpeg *.gif *.webp *.bmp",
+            ]
+        return None
+
+    async def _pick_image(self) -> None:
+        self._picking = True
+        try:
+            command = self._file_dialog_command()
+            if command is None:
+                self.notify(
+                    "Kein Datei-Dialog verfügbar – bitte zenity oder kdialog installieren",
+                    severity="error", timeout=5,
+                )
+                return
             proc = await asyncio.create_subprocess_exec(
-                "osascript", "-e", script,
+                *command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
             )
             out, _ = await proc.communicate()
             self._refocus_terminal()
-            if proc.returncode != 0:
+            selected = out.decode(errors="replace").strip()
+            if proc.returncode != 0 or not selected:
                 return  # Dialog abgebrochen
-            path = Path(out.decode().strip())
+            path = Path(selected)
             if path.is_file():
                 self._insert_image_link(self._editor(), path)
         finally:
@@ -503,8 +565,10 @@ class NotizApp(App):
         for line in text.splitlines():
             match = IMAGE_LINE.match(line)
             if match and "://" not in match.group(2):
-                raw = match.group(2).strip().replace("\\ ", " ")
-                lines.append(f"![{match.group(1)}]({quote(raw, safe='/')})")
+                raw = self._unescape_path(match.group(2).strip())
+                if sys.platform == "win32":
+                    raw = raw.replace("\\", "/")
+                lines.append(f"![{match.group(1)}]({quote(raw, safe='/:')})")
             else:
                 lines.append(line)
         # python-markdown erkennt Tabellen nur als eigenen Block –
@@ -536,11 +600,11 @@ class NotizApp(App):
         return "\n".join(out)
 
     async def _export_pdf(self, open_after: bool) -> None:
-        chrome = next((p for p in CHROME_PATHS if Path(p).is_file()), None)
+        chrome = find_chrome()
         if chrome is None:
             self.pdf_live = False
             self.notify(
-                "PDF-Export braucht Chrome/Chromium – nicht gefunden",
+                "PDF-Export braucht einen Chromium-Browser (Chrome/Chromium/Edge) – nicht gefunden",
                 severity="error", timeout=5,
             )
             return
@@ -567,12 +631,29 @@ class NotizApp(App):
         if proc.returncode != 0 or not pdf_path.is_file():
             self.notify("PDF-Export fehlgeschlagen", severity="error", timeout=4)
             return
-        use_skim = Path("/Applications/Skim.app").exists()
         if open_after:
-            viewer = "Skim" if use_skim else "Preview"
-            subprocess.Popen(["open", "-a", viewer, str(pdf_path)])
-        elif self.pdf_live and not use_skim:
+            self._open_pdf(pdf_path)
+        elif (
+            self.pdf_live
+            and sys.platform == "darwin"
+            and not Path("/Applications/Skim.app").exists()
+        ):
+            # Nur Preview.app braucht den Anstupser; Skim, Evince, Okular
+            # & Co. laden geänderte Dateien selbst nach.
             self._refresh_preview_app(pdf_path)
+
+    @staticmethod
+    def _open_pdf(pdf_path: Path) -> None:
+        if sys.platform == "darwin":
+            viewer = "Skim" if Path("/Applications/Skim.app").exists() else "Preview"
+            subprocess.Popen(["open", "-a", viewer, str(pdf_path)])
+        elif sys.platform == "win32":
+            os.startfile(str(pdf_path))
+        else:
+            subprocess.Popen(
+                ["xdg-open", str(pdf_path)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
 
     @staticmethod
     def _refresh_preview_app(pdf_path: Path) -> None:
@@ -592,11 +673,7 @@ class NotizApp(App):
         )
 
     def _insert_image_link(self, editor: TextArea, path: Path) -> None:
-        path = path.resolve()
-        try:
-            link = str(path.relative_to(self.note_path.parent.resolve()))
-        except ValueError:
-            link = str(path)
+        link = self._link_for(path)
         row, col = editor.cursor_location
         line = editor.document.get_line(row)
         prefix = "" if not line.strip() else "\n"
@@ -800,17 +877,13 @@ class NotizApp(App):
         for match in BARE_IMAGE_PATH.finditer(line):
             if any(s <= match.start() < e for s, e in link_spans):
                 continue
-            raw = re.sub(r"\\(.)", r"\1", match.group(0))
+            raw = self._unescape_path(match.group(0))
             path = Path(raw).expanduser()
             if not path.is_absolute():
                 path = self.note_path.parent / path
             if not path.is_file():
                 continue
-            path = path.resolve()
-            try:
-                link = str(path.relative_to(self.note_path.parent.resolve()))
-            except ValueError:
-                link = str(path)
+            link = self._link_for(path)
             rest = line[: match.start()] + line[match.end():]
             template = re.fullmatch(r"(\s*)!\[([^\]]*)\]\(bild\.png\)\s*", rest)
             if template:
@@ -838,6 +911,24 @@ class NotizApp(App):
             editor.insert(event.text)
         event.stop()
 
+    def _link_for(self, path: Path) -> str:
+        """Markdown-Link für ein Bild: relativ zur Notiz, wenn möglich;
+        immer mit Vorwärts-Slashes (auch auf Windows)."""
+        path = path.resolve()
+        try:
+            link = str(path.relative_to(self.note_path.parent.resolve()))
+        except ValueError:
+            link = str(path)
+        return link.replace(os.sep, "/") if os.sep != "/" else link
+
+    @staticmethod
+    def _unescape_path(text: str) -> str:
+        """Backslash-Escapes aus Terminal-Drops entfernen – nur auf
+        Unix-Systemen; auf Windows sind Backslashes Pfadtrenner."""
+        if sys.platform == "win32":
+            return text
+        return re.sub(r"\\(.)", r"\1", text)
+
     def handle_image_drop(self, editor: TextArea, pasted: str) -> bool:
         """Verwandelt einen gedroppten Bild-Dateipfad in einen Markdown-Link.
 
@@ -847,15 +938,11 @@ class NotizApp(App):
         text = pasted.strip()
         if not text:
             return False
-        candidate = re.sub(r"\\(.)", r"\1", text.splitlines()[0].strip().strip("'\""))
+        candidate = self._unescape_path(text.splitlines()[0].strip().strip("'\""))
         path = Path(candidate).expanduser()
         if path.suffix.lower() not in IMAGE_EXTS or not path.is_file():
             return False
-        path = path.resolve()
-        try:
-            link = str(path.relative_to(self.note_path.parent.resolve()))
-        except ValueError:
-            link = str(path)
+        link = self._link_for(path)
         row = editor.cursor_location[0]
         line = editor.document.get_line(row)
         match = IMAGE_LINK.match(line)

@@ -153,9 +153,9 @@ async def main() -> None:
         _, col2 = editor.cursor_location
         assert line[col2 - 2:col2] == "• ", (line, col2)
 
-        # PDF-Export (nur wenn ein Chrome-Browser vorhanden ist)
-        from app import CHROME_PATHS
-        if any(Path(p).is_file() for p in CHROME_PATHS):
+        # PDF-Export (nur wenn ein Chromium-Browser vorhanden ist)
+        from app import find_chrome
+        if find_chrome():
             editor.load_text(note.read_text(encoding="utf-8"))
             await app._export_pdf(open_after=False)
             pdf = note.with_suffix(".pdf")

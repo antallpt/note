@@ -1,4 +1,4 @@
-#!/bin/zsh
-# Launcher: startet notiz mit dem venv-Python des Projekts.
+#!/bin/sh
+# Launcher (macOS/Linux): startet note mit dem venv-Python des Projekts.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 exec "$DIR/.venv/bin/python" "$DIR/app.py" "$@"
