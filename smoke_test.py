@@ -21,6 +21,11 @@ async def main() -> None:
         assert images, "Vorschau enthaelt kein Bild-Widget"
         assert app.query(".image-caption"), "Bildunterschrift fehlt in der Vorschau"
 
+        # Grau-Hierarchie in der Vorschau wie im PDF
+        from textual.widgets._markdown import MarkdownH1, MarkdownH2
+        assert app.query(MarkdownH1).first().styles.color.hex.lower() == "#262626"
+        assert app.query(MarkdownH2).first().styles.color.hex.lower() == "#404040"
+
         editor = app.query_one("#editor", TextArea)
         editor.insert("\n\nNeuer Testabsatz.\n")
         await pilot.pause(1.0)

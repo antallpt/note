@@ -148,7 +148,7 @@ EDITOR_THEME = TextAreaTheme(
     selection_style=Style(bgcolor="#dcdcdc"),
     bracket_matching_style=Style(bgcolor="#e4e4e4", bold=True),
     syntax_styles={
-        "heading": Style(color="#111111", bold=True),
+        "heading": Style(color="#262626", bold=True),
         "bold": Style(color="#1f1f1f", bold=True),
         "italic": Style(color="#1f1f1f", italic=True),
         "link": Style(color="#4a4a4a", underline=True),
@@ -257,7 +257,14 @@ class NotizApp(App):
     #preview Markdown {
         margin: 0;
         padding: 0;
+        color: #737373;
     }
+    /* Grau-Hierarchie wie im PDF: Titel dunkel, Text hell, Tabellenkopf dazwischen */
+    MarkdownH1 { color: #262626; }
+    MarkdownH2 { color: #404040; }
+    MarkdownH3 { color: #525252; }
+    MarkdownTableContent > .header { color: #525252; }
+    MarkdownBullet { color: #a3a3a3; }
     Footer {
         scrollbar-size: 0 0;
     }
@@ -280,7 +287,7 @@ class NotizApp(App):
         margin: 1 0 0 0;
     }
     .image-caption {
-        color: $secondary;
+        color: #a3a3a3;
         text-style: italic;
         margin: 0 0 1 0;
     }
