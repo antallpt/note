@@ -10,13 +10,14 @@ Aufruf:  note [datei]   – ohne Endung wird .md angehängt,
 
 from __future__ import annotations
 
+import asyncio
 import io
 import os
 import re
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 from rich.style import Style
 from textual import events
@@ -156,7 +157,29 @@ TABLE_SNIPPET = (
     "|     |     |\n"
 )
 
-IMAGE_SNIPPET = "\n![Beschreibung](bild.png)"
+CHROME_PATHS = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+]
+
+HTML_TEMPLATE = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>{title}</title><style>
+body {{ font-family: -apple-system, 'Helvetica Neue', sans-serif; color: #1f1f1f;
+       max-width: 720px; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; }}
+h1, h2, h3 {{ color: #111111; }}
+table {{ border-collapse: collapse; margin: 1em 0; }}
+th, td {{ border: 1px solid #9a9a9a; padding: 0.35em 0.7em; text-align: left; }}
+th {{ background: #f0f0f0; }}
+img {{ max-width: 100%; }}
+code {{ background: #f2f2f2; padding: 0.1em 0.3em; border-radius: 3px; }}
+pre code {{ display: block; padding: 0.8em; overflow-x: auto; }}
+blockquote {{ border-left: 3px solid #c0c0c0; margin-left: 0; padding-left: 1em; color: #4a4a4a; }}
+</style></head><body>
+{body}
+</body></html>
+"""
 
 
 class NoteEditor(TextArea):
@@ -244,6 +267,7 @@ class NotizApp(App):
         Binding("ctrl+b,super+b", "add_table_column", "+Spalte"),
         Binding("ctrl+f,super+f", "remove_table_column", "−Spalte"),
         Binding("ctrl+g,super+g", "insert_image", "Bild"),
+        Binding("ctrl+l,super+l", "toggle_pdf", "PDF"),
         Binding("ctrl+q,super+q", "quit_save", "Beenden"),
     ]
 
@@ -251,6 +275,8 @@ class NotizApp(App):
         super().__init__()
         self.note_path = note_path
         self.dirty = False
+        self.pdf_live = False
+        self._picking = False
 
     # ---------- Aufbau ----------
 
@@ -346,6 +372,8 @@ class NotizApp(App):
     def action_save(self) -> None:
         self._save()
         self._schedule_render()
+        if self.pdf_live:
+            self.run_worker(self._export_pdf(open_after=False), exclusive=True, group="pdf")
         self.notify(f"Gespeichert: {self.note_path.name}", timeout=2)
 
     def _save(self) -> None:
@@ -366,70 +394,103 @@ class NotizApp(App):
         editor.move_cursor((row + 1, 2))
 
     def action_insert_image(self) -> None:
-        """Fügt ein Bild ein: kopierte Datei oder Screenshot aus der
-        Zwischenablage; sonst die Link-Vorlage."""
-        editor = self._editor()
-        clip_file = self._clipboard_file_path()
-        if clip_file is not None and clip_file.suffix.lower() in IMAGE_EXTS:
-            self._insert_image_link(editor, clip_file)
-            self.notify(f"Verlinkt: {clip_file.name}", timeout=3)
+        """Öffnet den Finder-Dateidialog und verlinkt das gewählte Bild."""
+        if self._picking:
             return
-        dest_dir = self.note_path.parent / "bilder"
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        dest = dest_dir / f"bild-{datetime.now():%Y%m%d-%H%M%S}.png"
-        if self._clipboard_png_to(dest):
-            self._insert_image_link(editor, dest)
-            self.notify(f"Screenshot gespeichert: bilder/{dest.name}", timeout=3)
-            return
+        self.run_worker(self._pick_image(), group="pick")
+
+    async def _pick_image(self) -> None:
+        self._picking = True
         try:
-            dest_dir.rmdir()  # nur entfernen, wenn leer angelegt
-        except OSError:
-            pass
-        editor.insert(IMAGE_SNIPPET)
+            script = (
+                'set p to POSIX path of (choose file of type {"public.image"} '
+                'with prompt "Bild für die Notiz auswählen")\n'
+                "return p"
+            )
+            proc = await asyncio.create_subprocess_exec(
+                "osascript", "-e", script,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            out, _ = await proc.communicate()
+            self._refocus_terminal()
+            if proc.returncode != 0:
+                return  # Dialog abgebrochen
+            path = Path(out.decode().strip())
+            if path.is_file():
+                self._insert_image_link(self._editor(), path)
+        finally:
+            self._picking = False
 
     @staticmethod
-    def _clipboard_file_path() -> Path | None:
-        """Pfad einer im Finder kopierten Datei, sonst None."""
-        try:
-            result = subprocess.run(
-                ["osascript", "-e", "POSIX path of (the clipboard as «class furl»)"],
-                capture_output=True, text=True, timeout=3,
+    def _refocus_terminal() -> None:
+        """Holt das Terminal nach einem Dialog wieder in den Vordergrund."""
+        term_apps = {"Apple_Terminal": "Terminal", "iTerm.app": "iTerm"}
+        app_name = term_apps.get(os.environ.get("TERM_PROGRAM", ""))
+        if app_name:
+            subprocess.Popen(
+                ["osascript", "-e", f'tell application "{app_name}" to activate'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
-        except Exception:
-            return None
-        if result.returncode != 0:
-            return None
-        path = Path(result.stdout.strip())
-        return path if path.is_file() else None
 
-    @staticmethod
-    def _clipboard_png_to(dest: Path) -> bool:
-        """Schreibt Bilddaten aus der Zwischenablage (z.B. Screenshot) als PNG."""
-        script = (
-            f'set outFile to (open for access POSIX file "{dest}" with write permission)\n'
-            "try\n"
-            "    write (the clipboard as «class PNGf») to outFile\n"
-            "    close access outFile\n"
-            "on error\n"
-            "    close access outFile\n"
-            "    error\n"
-            "end try\n"
-        )
-        try:
-            result = subprocess.run(
-                ["osascript", "-e", script], capture_output=True, timeout=5
+    # ---------- PDF-Vorschau ----------
+
+    def action_toggle_pdf(self) -> None:
+        """Live-PDF an/aus: erzeugt die PDF-Datei neben der Notiz und öffnet
+        sie in der Vorschau-App; bei jedem Speichern wird sie aktualisiert."""
+        self.pdf_live = not self.pdf_live
+        if self.pdf_live:
+            self.notify("PDF-Vorschau an – aktualisiert sich bei jedem Speichern", timeout=3)
+            self.run_worker(self._export_pdf(open_after=True), exclusive=True, group="pdf")
+        else:
+            self.notify("PDF-Vorschau aus", timeout=2)
+
+    def _md_for_export(self, text: str) -> str:
+        """Bildpfade URL-tauglich machen (Leerzeichen etc. encodieren)."""
+        lines = []
+        for line in text.splitlines():
+            match = IMAGE_LINE.match(line)
+            if match and "://" not in match.group(2):
+                raw = match.group(2).strip().replace("\\ ", " ")
+                lines.append(f"![{match.group(1)}]({quote(raw, safe='/')})")
+            else:
+                lines.append(line)
+        return "\n".join(lines)
+
+    async def _export_pdf(self, open_after: bool) -> None:
+        chrome = next((p for p in CHROME_PATHS if Path(p).is_file()), None)
+        if chrome is None:
+            self.pdf_live = False
+            self.notify(
+                "PDF-Export braucht Chrome/Chromium – nicht gefunden",
+                severity="error", timeout=5,
             )
-        except Exception:
-            result = None
-        ok = (
-            result is not None
-            and result.returncode == 0
-            and dest.is_file()
-            and dest.stat().st_size > 0
+            return
+        import markdown as md
+
+        body = md.markdown(
+            self._md_for_export(self._editor().text),
+            extensions=["tables", "fenced_code"],
         )
-        if not ok and dest.exists():
-            dest.unlink()
-        return ok
+        html = HTML_TEMPLATE.format(title=self.note_path.stem, body=body)
+        html_path = self.note_path.parent / (self.note_path.stem + ".preview.html")
+        pdf_path = self.note_path.with_suffix(".pdf")
+        html_path.write_text(html, encoding="utf-8")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                chrome, "--headless", "--disable-gpu", "--no-pdf-header-footer",
+                f"--print-to-pdf={pdf_path}", str(html_path),
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.wait()
+        finally:
+            html_path.unlink(missing_ok=True)
+        if proc.returncode != 0 or not pdf_path.is_file():
+            self.notify("PDF-Export fehlgeschlagen", severity="error", timeout=4)
+            return
+        if open_after:
+            subprocess.Popen(["open", str(pdf_path)])
 
     def _insert_image_link(self, editor: TextArea, path: Path) -> None:
         path = path.resolve()

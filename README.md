@@ -44,7 +44,8 @@ alias note='"/pfad/zu/notiz/note"'
 | Ctrl+O  | Tabellenzeile entfernen         |
 | Ctrl+B  | Tabellenspalte hinzufügen       |
 | Ctrl+F  | Tabellenspalte entfernen        |
-| Ctrl+G  | Bild einfügen (aus Zwischenablage, sonst Vorlage) |
+| Ctrl+G  | Bild über Finder-Dialog auswählen |
+| Ctrl+L  | Live-PDF-Vorschau an/aus        |
 | Ctrl+Z / Ctrl+Y | Rückgängig / Wiederherstellen |
 | Ctrl+P  | Befehlspalette (Textual)        |
 
@@ -68,14 +69,8 @@ Cursor bleibt dabei in seiner Zelle.
 Ein Bild erscheint in der Vorschau, wenn sein Link allein auf einer Zeile steht:
 `![Beschreibung](diagramm.png)` — Pfade relativ zur Notiz-Datei.
 
-Der schnellste Weg ist die **Zwischenablage mit Ctrl+G**:
-
-- **Screenshot:** Mit Cmd+Ctrl+Shift+4 einen Bereich in die Zwischenablage
-  fotografieren, dann in der Notiz Ctrl+G — das PNG wird automatisch unter
-  `bilder/` neben der Notiz gespeichert und verlinkt.
-- **Datei:** Im Finder eine Bilddatei kopieren (Cmd+C), dann Ctrl+G — die Datei
-  wird direkt verlinkt.
-- Ist nichts Passendes in der Zwischenablage, fügt Ctrl+G die Link-Vorlage ein.
+**Ctrl+G öffnet den Finder-Dateidialog** — Bild auswählen, und es wird an der
+Cursorposition verlinkt (auf eigener Zeile, mit markiertem Titel).
 
 Auch **Drag & Drop aus dem Finder** und von Hand getippte Pfade zu
 existierenden Bildern werden automatisch in Links umgewandelt (~0,5 s nach der
@@ -90,6 +85,17 @@ Grafikprotokoll (auch nicht per Plugin), dort werden Bilder als farbige
 Pixelblöcke gerendert — **ein Klick auf ein Bild in der Vorschau öffnet es in
 voller Qualität in der Vorschau-App.** kitty/Ghostty/iTerm2/WezTerm zeigen
 Bilder direkt scharf an (Kitty-Graphics-Protokoll bzw. Sixel).
+
+## Live-PDF-Vorschau
+
+**Ctrl+L** erzeugt neben der Notiz eine PDF-Datei (gleicher Name, `.pdf`) und
+öffnet sie in der macOS-Vorschau. Solange die PDF-Vorschau an ist, wird das PDF
+bei jedem Speichern (Ctrl+S) neu erzeugt — die Vorschau-App lädt es automatisch
+neu. Tabellen und Bilder werden dabei in voller Qualität gerendert.
+
+Der Export nutzt einen installierten Chrome/Chromium/Brave/Edge als
+PDF-Renderer (headless). Das PDF eignet sich auch direkt zum Abgeben oder
+Teilen.
 
 ## Entwicklung
 

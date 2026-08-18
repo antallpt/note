@@ -11,9 +11,6 @@ from app import NotizApp
 async def main() -> None:
     note = Path(__file__).parent / "beispiel" / "Beispiel.md"
     app = NotizApp(note)
-    # Zwischenablage im Test deterministisch "leer" halten
-    app._clipboard_file_path = lambda: None
-    app._clipboard_png_to = lambda dest: False
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(1.0)
 
@@ -61,11 +58,10 @@ async def main() -> None:
         app.action_add_table_row()
         assert editor.text == text_before, "Aktion ausserhalb der Tabelle veraenderte den Text"
 
-        # Bild-Drop via Paste-Event: Pfad auf der Ctrl+G-Zeile wird zum Link
+        # Bild-Drop via Paste-Event: Pfad auf einer Vorlagen-Zeile wird zum Link
         img = (Path(__file__).parent / "beispiel" / "diagramm.png").resolve()
         escaped = str(img).replace(" ", "\\ ")
-        editor.load_text("")
-        app.action_insert_image()
+        editor.load_text("![Beschreibung](bild.png)")
         assert app.handle_image_drop(editor, escaped), "Bildpfad wurde nicht als Drop erkannt"
         row = editor.cursor_location[0]
         line = editor.document.get_line(row)
@@ -115,6 +111,15 @@ async def main() -> None:
         assert editor.text == "abc", "Ctrl+Z hat nicht rueckgaengig gemacht"
         await pilot.press("ctrl+y")
         assert editor.text == "abcx", "Ctrl+Y hat nicht wiederhergestellt"
+
+        # PDF-Export (nur wenn ein Chrome-Browser vorhanden ist)
+        from app import CHROME_PATHS
+        if any(Path(p).is_file() for p in CHROME_PATHS):
+            editor.load_text(note.read_text(encoding="utf-8"))
+            await app._export_pdf(open_after=False)
+            pdf = note.with_suffix(".pdf")
+            assert pdf.is_file() and pdf.stat().st_size > 1000, "PDF wurde nicht erzeugt"
+            pdf.unlink()
 
         # Speichern & Beenden darf keinen Worker-Crash ausloesen
         editor.load_text(note.read_text(encoding="utf-8"))
