@@ -95,11 +95,11 @@ EDITOR_THEME = TextAreaTheme(
         "italic": Style(color="#1f1f1f", italic=True),
         "link": Style(color="#4a4a4a", underline=True),
         "inline_code": Style(color="#333333", bgcolor="#efefef"),
-        "punctuation.special": Style(color="#9a9a9a"),
-        "punctuation.delimiter": Style(color="#9a9a9a"),
-        "punctuation.bracket": Style(color="#9a9a9a"),
+        "punctuation.special": Style(color="#7a7a7a"),
+        "punctuation.delimiter": Style(color="#7a7a7a"),
+        "punctuation.bracket": Style(color="#7a7a7a"),
         "string": Style(color="#4a4a4a"),
-        "comment": Style(color="#9a9a9a", italic=True),
+        "comment": Style(color="#7a7a7a", italic=True),
     },
 )
 
@@ -125,13 +125,33 @@ class NoteEditor(TextArea):
 
 class NotizApp(App):
     CSS = """
+    * {
+        scrollbar-size-vertical: 1;
+        scrollbar-size-horizontal: 1;
+        scrollbar-color: #c4c4c4;
+        scrollbar-color-hover: #a4a4a4;
+        scrollbar-color-active: #848484;
+        scrollbar-background: $surface;
+        scrollbar-background-hover: $surface;
+        scrollbar-background-active: $surface;
+        scrollbar-corner-color: $surface;
+    }
+    #panes {
+        border: solid #7a7a7a;
+        background: $surface;
+    }
     #editor {
         width: 1fr;
+        border: none;
+        background: $surface;
+    }
+    #editor:focus {
+        border: none;
     }
     #preview {
         width: 1fr;
         background: $surface;
-        border-left: solid $panel;
+        border-left: solid #7a7a7a;
         padding: 0 1;
     }
     #preview.hidden {
@@ -140,6 +160,19 @@ class NotizApp(App):
     #preview Markdown {
         margin: 0;
         padding: 0;
+    }
+    Toast {
+        width: auto;
+        min-width: 20;
+        max-width: 50%;
+        padding: 0 1;
+        margin: 0 1 0 0;
+        background: $surface;
+        color: $foreground;
+        border: solid #7a7a7a;
+    }
+    Toast.-information, Toast.-warning, Toast.-error {
+        border: solid #7a7a7a;
     }
     .note-image {
         height: 18;
@@ -188,7 +221,7 @@ class NotizApp(App):
         preview = VerticalScroll(id="preview")
         preview.can_focus = False
         yield Header()
-        with Horizontal():
+        with Horizontal(id="panes"):
             yield editor
             yield preview
         yield Footer()
