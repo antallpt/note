@@ -55,16 +55,26 @@ Alle Kürzel sind auch mit Cmd statt Ctrl hinterlegt — das funktioniert aber
 nur in Terminals, die Cmd an Programme durchreichen (Ghostty, kitty, WezTerm).
 Apple Terminal behält Cmd-Kürzel für sich (Cmd+Q würde das Terminal beenden).
 
+## Tabellen
+
+Ctrl+T fügt ein leeres Tabellen-Gerüst ein (der Cursor landet in der ersten
+Zelle), Ctrl+N/O/B/F ändern Zeilen und Spalten. Tabellen werden beim Schreiben
+**automatisch bündig ausgerichtet** — ~0,5 s nach der letzten Eingabe; der
+Cursor bleibt dabei in seiner Zelle.
+
 ## Bilder
 
 Ein Bild erscheint in der Vorschau, wenn sein Link allein auf einer Zeile steht:
 `![Beschreibung](diagramm.png)` — Pfade relativ zur Notiz-Datei.
 
 Am schnellsten: **Bilddatei aus dem Finder ins Terminal ziehen.** Der Pfad wird
-erkannt und automatisch in einen Markdown-Link umgewandelt — landet der Drop auf
-einer `![…](…)`-Zeile (z.B. frisch per Ctrl+G erzeugt), wird deren Pfad ersetzt,
-sonst wird ein neuer Link an der Cursorposition eingefügt. Liegt das Bild im
-Ordner der Notiz, wird der Link automatisch relativ.
+erkannt und automatisch in einen Markdown-Link umgewandelt — egal ob das
+Terminal den Drop als Paste-Event oder als getippten Text übergibt (dann greift
+die Umwandlung ~0,5 s später). Landet der Pfad auf einer `![…](…)`-Zeile
+(z.B. frisch per Ctrl+G erzeugt), wird deren Platzhalter ersetzt, sonst wird ein
+Link an Ort und Stelle eingefügt. Auch von Hand getippte Pfade zu existierenden
+Bildern werden so verlinkt. Liegt das Bild im Ordner der Notiz, wird der Link
+automatisch relativ.
 
 Die Darstellungsqualität hängt vom Terminal ab: Apple Terminal zeigt
 Pixelblöcke, kitty/Ghostty/iTerm2/WezTerm zeigen scharfe Grafiken

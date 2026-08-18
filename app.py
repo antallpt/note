@@ -38,6 +38,13 @@ SEP_CELL = re.compile(r":?-+:?")
 # Formate, die PIL/textual-image sicher rendern kann
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
+# Ein nackter Bildpfad im Text, z.B. per Drag & Drop aus dem Finder getippt.
+# Leerzeichen u.ä. kommen von Apple Terminal backslash-escaped an.
+BARE_IMAGE_PATH = re.compile(
+    r"(?:\\.|[^\s|()\[\]<>])+\.(?:png|jpe?g|gif|webp|bmp)", re.IGNORECASE
+)
+MD_IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+
 LIGHT_THEME = Theme(
     name="notiz-light",
     primary="#5a5a5a",
@@ -77,9 +84,9 @@ EDITOR_THEME = TextAreaTheme(
 )
 
 TABLE_SNIPPET = (
-    "\n| Spalte 1 | Spalte 2 |\n"
-    "|----------|----------|\n"
-    "|          |          |\n\n"
+    "\n|     |     |\n"
+    "|-----|-----|\n"
+    "|     |     |\n"
 )
 
 IMAGE_SNIPPET = "\n![Beschreibung](bild.png)"
@@ -177,6 +184,9 @@ class NotizApp(App):
         self._timer = self.set_timer(0.5, self._schedule_render)
 
     def _schedule_render(self) -> None:
+        editor = self._editor()
+        self._auto_link_images(editor)
+        self._format_table(editor)
         self.run_worker(self._render_preview(), exclusive=True, group="preview")
 
     async def _render_preview(self) -> None:
@@ -227,7 +237,11 @@ class NotizApp(App):
         self.query_one("#preview").toggle_class("hidden")
 
     def action_insert_table(self) -> None:
-        self._editor().insert(TABLE_SNIPPET)
+        editor = self._editor()
+        row = editor.cursor_location[0]
+        editor.insert(TABLE_SNIPPET)
+        # Cursor in die erste Zelle der neuen Tabelle
+        editor.move_cursor((row + 1, 2))
 
     def action_insert_image(self) -> None:
         self._editor().insert(IMAGE_SNIPPET)
@@ -273,6 +287,7 @@ class NotizApp(App):
         cols = len(self._cells(editor.document.get_line(start)))
         last = editor.document.get_line(end)
         editor.insert("\n|" + "   |" * cols, (end, len(last)))
+        self._format_table(editor)
 
     def action_remove_table_row(self) -> None:
         editor = self._editor()
@@ -309,12 +324,107 @@ class NotizApp(App):
                 stripped = body[: body.rfind("|") + 1]
             new_lines.append(stripped)
         editor.replace("\n".join(new_lines), (start, 0), (end, len(lines[-1])))
+        self._format_table(editor)
 
     def action_add_table_column(self) -> None:
         self._change_table_columns(1)
 
     def action_remove_table_column(self) -> None:
         self._change_table_columns(-1)
+
+    @staticmethod
+    def _cell_cursor(line: str, col: int) -> tuple[int, int]:
+        """Liefert (Zellenindex, Offset im Zelleninhalt) für eine Cursorspalte."""
+        pipes = [i for i, ch in enumerate(line) if ch == "|"]
+        if not pipes:
+            return 0, 0
+        cell = 0
+        for n, p in enumerate(pipes):
+            if col > p:
+                cell = n
+        cell = min(cell, len(pipes) - 1)
+        inner_start = pipes[cell] + 1
+        inner_end = pipes[cell + 1] if cell + 1 < len(pipes) else len(line)
+        inner = line[inner_start:inner_end]
+        lead = len(inner) - len(inner.lstrip())
+        offset = min(max(0, col - inner_start - lead), len(inner.strip()))
+        return cell, offset
+
+    def _format_table(self, editor: TextArea) -> None:
+        """Richtet die Tabelle unter dem Cursor bündig aus; Cursor bleibt in seiner Zelle."""
+        bounds = self._table_bounds(editor)
+        if bounds is None:
+            return
+        start, end = bounds
+        doc = editor.document
+        lines = [doc.get_line(i) for i in range(start, end + 1)]
+        rows = [self._cells(line) for line in lines]
+        seps = [self._is_separator(line) for line in lines]
+        ncols = max(len(r) for r in rows)
+        widths = [3] * ncols
+        for r, sep in zip(rows, seps):
+            if sep:
+                continue
+            for i, cell in enumerate(r):
+                widths[i] = max(widths[i], len(cell))
+        new_lines = []
+        for r, sep in zip(rows, seps):
+            if sep:
+                cells = []
+                for i in range(ncols):
+                    spec = r[i] if i < len(r) else "---"
+                    left = ":" if spec.startswith(":") else ""
+                    right = ":" if spec.endswith(":") and len(spec) > 1 else ""
+                    cells.append(left + "-" * (widths[i] + 2 - len(left) - len(right)) + right)
+                new_lines.append("|" + "|".join(cells) + "|")
+            else:
+                cells = [(r[i] if i < len(r) else "").ljust(widths[i]) for i in range(ncols)]
+                new_lines.append("| " + " | ".join(cells) + " |")
+        if new_lines == lines:
+            return
+        row, col = editor.cursor_location
+        cell, offset = self._cell_cursor(lines[row - start], col)
+        editor.replace("\n".join(new_lines), (start, 0), (end, len(lines[-1])))
+        new_line = new_lines[row - start]
+        pipes = [i for i, ch in enumerate(new_line) if ch == "|"]
+        if pipes:
+            cell = min(cell, len(pipes) - 1)
+            editor.move_cursor((row, min(pipes[cell] + 2 + offset, len(new_line))))
+
+    def _auto_link_images(self, editor: TextArea) -> None:
+        """Wandelt einen nackten Bildpfad auf der Cursor-Zeile in einen Markdown-Link um.
+
+        Fängt Drag & Drop auch dann ab, wenn das Terminal den Pfad als
+        Tastatureingabe statt als Paste-Event liefert.
+        """
+        row = editor.cursor_location[0]
+        line = editor.document.get_line(row)
+        link_spans = [m.span() for m in MD_IMAGE.finditer(line)]
+        for match in BARE_IMAGE_PATH.finditer(line):
+            if any(s <= match.start() < e for s, e in link_spans):
+                continue
+            raw = re.sub(r"\\(.)", r"\1", match.group(0))
+            path = Path(raw).expanduser()
+            if not path.is_absolute():
+                path = self.note_path.parent / path
+            if not path.is_file():
+                continue
+            path = path.resolve()
+            try:
+                link = str(path.relative_to(self.note_path.parent.resolve()))
+            except ValueError:
+                link = str(path)
+            rest = line[: match.start()] + line[match.end():]
+            template = re.fullmatch(r"(\s*)!\[([^\]]*)\]\(bild\.png\)\s*", rest)
+            if template:
+                desc = template.group(2)
+                if desc in ("", "Beschreibung"):
+                    desc = path.stem
+                new_line = f"{template.group(1)}![{desc}]({link})"
+            else:
+                new_line = f"{line[: match.start()]}![{path.stem}]({link}){line[match.end():]}"
+            editor.replace(new_line, (row, 0), (row, len(line)))
+            return
 
     # ---------- Bild per Drag & Drop ----------
 
@@ -327,7 +437,7 @@ class NotizApp(App):
         text = pasted.strip()
         if not text:
             return False
-        candidate = text.splitlines()[0].strip().strip("'\"").replace("\\ ", " ")
+        candidate = re.sub(r"\\(.)", r"\1", text.splitlines()[0].strip().strip("'\""))
         path = Path(candidate).expanduser()
         if path.suffix.lower() not in IMAGE_EXTS or not path.is_file():
             return False

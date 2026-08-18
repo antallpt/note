@@ -26,16 +26,15 @@ async def main() -> None:
         assert app.dirty, "Editor-Aenderung wurde nicht als dirty markiert"
 
         app.action_insert_table()
+        header_row = editor.cursor_location[0]
+        assert editor.document.get_line(header_row).startswith("|"), "Tabellen-Geruest fehlt"
         await pilot.pause(1.0)
-        assert "| Spalte 1 |" in editor.text
 
         app.action_toggle_preview()
         assert app.query_one("#preview").has_class("hidden")
         app.action_toggle_preview()
 
         # Tabellen erweitern/verkleinern: Cursor in die eingefuegte Tabelle setzen
-        lines = editor.text.splitlines()
-        header_row = next(i for i, l in enumerate(lines) if l.lstrip().startswith("| Spalte 1"))
         editor.move_cursor((header_row + 2, 2))
         before_lines = editor.document.line_count
         app.action_add_table_row()
@@ -57,14 +56,12 @@ async def main() -> None:
         app.action_add_table_row()
         assert editor.text == text_before, "Aktion ausserhalb der Tabelle veraenderte den Text"
 
-        # Bild-Drop: Pfad-Paste auf der Ctrl+G-Zeile wird zum Link
+        # Bild-Drop via Paste-Event: Pfad auf der Ctrl+G-Zeile wird zum Link
         img = (Path(__file__).parent / "beispiel" / "diagramm.png").resolve()
-        end_row = editor.document.line_count - 1
-        editor.move_cursor((end_row, len(editor.document.get_line(end_row))))
-        app.action_insert_image()
         escaped = str(img).replace(" ", "\\ ")
-        handled = app.handle_image_drop(editor, escaped)
-        assert handled, "Bildpfad wurde nicht als Drop erkannt"
+        editor.load_text("")
+        app.action_insert_image()
+        assert app.handle_image_drop(editor, escaped), "Bildpfad wurde nicht als Drop erkannt"
         row = editor.cursor_location[0]
         line = editor.document.get_line(row)
         assert line == "![diagramm](diagramm.png)", f"Unerwartete Zeile: {line!r}"
@@ -72,7 +69,31 @@ async def main() -> None:
         # Kein Bildpfad -> normales Einfuegen bleibt zustaendig
         assert not app.handle_image_drop(editor, "einfach nur text")
 
-    print("OK: Editor, Vorschau, Tabellen-Shortcuts und Bild-Drop funktionieren")
+        # Drop, der als Tastatureingabe ankommt: Auto-Link auf der Cursor-Zeile
+        editor.load_text("Notiz dazu: " + escaped)
+        editor.move_cursor((0, 5))
+        app._auto_link_images(editor)
+        line = editor.document.get_line(0)
+        assert line == "Notiz dazu: ![diagramm](diagramm.png)", f"Unerwartet: {line!r}"
+
+        # ... und auf der Ctrl+G-Zeile ersetzt er den Platzhalter komplett
+        editor.load_text("![Beschreibung](bild.png)" + escaped)
+        editor.move_cursor((0, 0))
+        app._auto_link_images(editor)
+        line = editor.document.get_line(0)
+        assert line == "![diagramm](diagramm.png)", f"Unerwartet: {line!r}"
+
+        # Live-Autoformat: unordentliche Tabelle wird buendig ausgerichtet
+        editor.load_text("| Spalte 1 | Hallo |Hallo   |\n|----------|---|---|\n|  | test | test |")
+        editor.move_cursor((2, 3))
+        app._format_table(editor)
+        lines2 = editor.text.splitlines()
+        assert lines2[0] == "| Spalte 1 | Hallo | Hallo |", lines2[0]
+        assert lines2[1] == "|----------|-------|-------|", lines2[1]
+        assert lines2[2] == "|          | test  | test  |", lines2[2]
+        assert editor.cursor_location == (2, 2), editor.cursor_location
+
+    print("OK: Editor, Vorschau, Tabellen-Shortcuts, Autoformat und Bild-Drop funktionieren")
 
 
 asyncio.run(main())
