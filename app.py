@@ -166,14 +166,21 @@ CHROME_PATHS = [
 
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>{title}</title><style>
+@page {{ margin: 1.5cm; }}
 body {{ font-family: -apple-system, 'Helvetica Neue', sans-serif; color: #1f1f1f;
-       max-width: 720px; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; }}
-h1, h2, h3 {{ color: #111111; }}
-table {{ border-collapse: collapse; margin: 1em 0; }}
-th, td {{ border: 1px solid #9a9a9a; padding: 0.35em 0.7em; text-align: left; }}
+       max-width: 720px; margin: 0 auto; line-height: 1.5; font-size: 11pt; }}
+h1 {{ font-size: 1.5em; }}
+h2 {{ font-size: 1.25em; }}
+h3 {{ font-size: 1.1em; }}
+h1, h2, h3 {{ color: #111111; margin: 0.8em 0 0.35em; break-after: avoid; }}
+p {{ margin: 0.4em 0; }}
+table {{ border-collapse: collapse; margin: 0.7em 0; break-inside: avoid; }}
+th, td {{ border: 1px solid #9a9a9a; padding: 0.3em 0.6em; text-align: left; }}
 th {{ background: #f0f0f0; }}
-img {{ max-width: 100%; }}
+img {{ max-width: 100%; max-height: 10cm; width: auto; height: auto;
+      display: block; margin: 0.5em 0; break-inside: avoid; }}
 code {{ background: #f2f2f2; padding: 0.1em 0.3em; border-radius: 3px; }}
+pre {{ break-inside: avoid; }}
 pre code {{ display: block; padding: 0.8em; overflow-x: auto; }}
 blockquote {{ border-left: 3px solid #c0c0c0; margin-left: 0; padding-left: 1em; color: #4a4a4a; }}
 </style></head><body>

@@ -119,6 +119,9 @@ async def main() -> None:
             await app._export_pdf(open_after=False)
             pdf = note.with_suffix(".pdf")
             assert pdf.is_file() and pdf.stat().st_size > 1000, "PDF wurde nicht erzeugt"
+            data = pdf.read_bytes()
+            pages = data.count(b"/Type /Page") - data.count(b"/Type /Pages")
+            assert pages == 1, f"Beispielnotiz sollte auf eine PDF-Seite passen, hat {pages}"
             pdf.unlink()
 
         # Speichern & Beenden darf keinen Worker-Crash ausloesen
