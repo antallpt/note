@@ -10,6 +10,8 @@ Aufruf:  note [datei]   – ohne Endung wird .md angehängt,
 
 from __future__ import annotations
 
+import io
+import os
 import re
 import subprocess
 import sys
@@ -25,9 +27,54 @@ from textual.theme import Theme
 from textual.widgets import Footer, Header, Markdown, Static, TextArea
 from textual.widgets.text_area import Selection, TextAreaTheme
 
+def _import_image_widget():
+    """Importiert textual-image; auf Apple Terminal ohne Terminal-Abfragen.
+
+    textual-image schickt beim Import Sixel-/Kitty-Grafikabfragen ans
+    Terminal. Apple Terminal versteht sie nicht und druckt die Kitty-Abfrage
+    als Text ('Gi=…'), der nach dem Beenden im Verlauf steht. Da Apple
+    Terminal ohnehin kein Grafikprotokoll kann, schlucken wir die Abfragen
+    dort und landen direkt beim Halfcell-Rendering.
+    """
+    if (
+        os.environ.get("TERM_PROGRAM") == "Apple_Terminal"
+        and sys.__stdout__ is not None
+        and sys.__stdout__.isatty()
+    ):
+
+        class _QuietTTY(io.TextIOBase):
+            def __init__(self, fd: int) -> None:
+                self._fd = fd
+
+            def write(self, s: str) -> int:
+                return len(s)
+
+            def flush(self) -> None:
+                return None
+
+            def isatty(self) -> bool:
+                return True
+
+            def fileno(self) -> int:
+                return self._fd
+
+        null = open(os.devnull, "w")
+        real_stdout = sys.__stdout__
+        sys.__stdout__ = _QuietTTY(null.fileno())
+        try:
+            from textual_image.renderable import Image as renderable
+            from textual_image.widget import Image as widget
+        finally:
+            sys.__stdout__ = real_stdout
+            null.close()
+        return renderable, widget
+    from textual_image.renderable import Image as renderable
+    from textual_image.widget import Image as widget
+    return renderable, widget
+
+
 try:
-    from textual_image.renderable import Image as _ImageRenderable
-    from textual_image.widget import Image
+    _ImageRenderable, Image = _import_image_widget()
 except Exception:
     Image = None
 
@@ -246,57 +293,67 @@ class NotizApp(App):
         self._timer = self.set_timer(0.5, self._schedule_render)
 
     def _schedule_render(self) -> None:
+        if not self.is_running:
+            return
         editor = self._editor()
         self._auto_link_images(editor)
         self._format_table(editor)
         self.run_worker(self._render_preview(), exclusive=True, group="preview")
 
     async def _render_preview(self) -> None:
-        preview = self.query_one("#preview", VerticalScroll)
-        text = self.query_one("#editor", TextArea).text
-        base = self.note_path.parent
+        try:
+            preview = self.query_one("#preview", VerticalScroll)
+            text = self.query_one("#editor", TextArea).text
+            base = self.note_path.parent
 
-        widgets = []
-        buffer: list[str] = []
+            widgets = []
+            buffer: list[str] = []
 
-        def flush() -> None:
-            if buffer:
-                widgets.append(Markdown("\n".join(buffer)))
-                buffer.clear()
+            def flush() -> None:
+                if buffer:
+                    widgets.append(Markdown("\n".join(buffer)))
+                    buffer.clear()
 
-        for line in text.splitlines():
-            match = IMAGE_LINE.match(line)
-            if match and Image is not None and "://" not in match.group(2):
-                raw = match.group(2).strip().replace("\\ ", " ")
-                img_path = (base / raw).expanduser()
-                if img_path.is_file() and img_path.suffix.lower() in IMAGE_EXTS:
-                    flush()
-                    image = NoteImage(img_path)
-                    image.add_class("note-image")
-                    widgets.append(image)
-                    title = match.group(1).strip()
-                    if title:
-                        widgets.append(Static(title, classes="image-caption"))
-                    continue
-            buffer.append(line)
-        flush()
+            for line in text.splitlines():
+                match = IMAGE_LINE.match(line)
+                if match and Image is not None and "://" not in match.group(2):
+                    raw = match.group(2).strip().replace("\\ ", " ")
+                    img_path = (base / raw).expanduser()
+                    if img_path.is_file() and img_path.suffix.lower() in IMAGE_EXTS:
+                        flush()
+                        image = NoteImage(img_path)
+                        image.add_class("note-image")
+                        widgets.append(image)
+                        title = match.group(1).strip()
+                        if title:
+                            widgets.append(Static(title, classes="image-caption"))
+                        continue
+                buffer.append(line)
+            flush()
 
-        scroll_y = preview.scroll_y
-        await preview.remove_children()
-        if widgets:
-            await preview.mount(*widgets)
-        preview.scroll_to(y=scroll_y, animate=False)
+            scroll_y = preview.scroll_y
+            await preview.remove_children()
+            if widgets:
+                await preview.mount(*widgets)
+            preview.scroll_to(y=scroll_y, animate=False)
+        except Exception:
+            # Beim Beenden kann die Vorschau bereits abgebaut sein –
+            # dann still aussteigen statt mit Traceback zu crashen.
+            pass
 
     # ---------- Aktionen ----------
 
     def action_save(self) -> None:
+        self._save()
+        self._schedule_render()
+        self.notify(f"Gespeichert: {self.note_path.name}", timeout=2)
+
+    def _save(self) -> None:
         text = self.query_one("#editor", TextArea).text
         self.note_path.parent.mkdir(parents=True, exist_ok=True)
         self.note_path.write_text(text, encoding="utf-8")
         self.dirty = False
         self._update_title()
-        self._schedule_render()
-        self.notify(f"Gespeichert: {self.note_path.name}", timeout=2)
 
     def action_toggle_preview(self) -> None:
         self.query_one("#preview").toggle_class("hidden")
@@ -624,7 +681,7 @@ class NotizApp(App):
 
     def action_quit_save(self) -> None:
         if self.dirty:
-            self.action_save()
+            self._save()
         self.exit()
 
     def _update_title(self) -> None:

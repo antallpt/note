@@ -116,6 +116,12 @@ async def main() -> None:
         await pilot.press("ctrl+y")
         assert editor.text == "abcx", "Ctrl+Y hat nicht wiederhergestellt"
 
+        # Speichern & Beenden darf keinen Worker-Crash ausloesen
+        editor.load_text(note.read_text(encoding="utf-8"))
+        assert app.dirty
+        app.action_quit_save()
+        await pilot.pause(0.3)
+
     print("OK: Editor, Vorschau, Tabellen-Shortcuts, Autoformat und Bild-Drop funktionieren")
 
 
