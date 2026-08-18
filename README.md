@@ -97,6 +97,13 @@ Der Export nutzt einen installierten Chrome/Chromium/Brave/Edge als
 PDF-Renderer (headless). Das PDF eignet sich auch direkt zum Abgeben oder
 Teilen.
 
+Da Preview.app geänderte PDFs erst beim Fokussieren neu lädt, stupst die App
+das Fenster nach jedem Export kurz an und gibt den Fokus sofort ans Terminal
+zurück (kurzes Flackern). Komplett flackerfrei wird es mit
+[Skim](https://skim-app.sourceforge.io) (`brew install --cask skim`): Ist Skim
+installiert, nutzt die App es automatisch — in den Skim-Einstellungen unter
+„Sync" das automatische Neuladen bei Dateiänderungen aktivieren.
+
 ## Entwicklung
 
 Einstieg: `app.py`. Beispielnotiz: `beispiel/Beispiel.md`.

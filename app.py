@@ -489,8 +489,32 @@ class NotizApp(App):
         if proc.returncode != 0 or not pdf_path.is_file():
             self.notify("PDF-Export fehlgeschlagen", severity="error", timeout=4)
             return
+        use_skim = Path("/Applications/Skim.app").exists()
         if open_after:
-            subprocess.Popen(["open", str(pdf_path)])
+            viewer = "Skim" if use_skim else "Preview"
+            subprocess.Popen(["open", "-a", viewer, str(pdf_path)])
+        elif self.pdf_live and not use_skim:
+            self._refresh_preview_app(pdf_path)
+
+    @staticmethod
+    def _refresh_preview_app(pdf_path: Path) -> None:
+        """Preview.app lädt geänderte PDFs erst beim Fokussieren neu –
+        kurz anstupsen und den Fokus sofort ans Terminal zurückgeben.
+        (Skim braucht das nicht, es lädt Änderungen selbst nach.)"""
+        term = {"Apple_Terminal": "Terminal", "iTerm.app": "iTerm"}.get(
+            os.environ.get("TERM_PROGRAM", "")
+        )
+        if term is None:
+            return
+        script = (
+            f'tell application "Preview" to open POSIX file "{pdf_path}"\n'
+            "delay 0.2\n"
+            f'tell application "{term}" to activate'
+        )
+        subprocess.Popen(
+            ["osascript", "-e", script],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
 
     def _insert_image_link(self, editor: TextArea, path: Path) -> None:
         path = path.resolve()
