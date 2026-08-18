@@ -40,16 +40,31 @@ alias note='"/pfad/zu/notiz/note"'
 | Ctrl+Q  | Speichern & Beenden             |
 | Ctrl+R  | Vorschau ein-/ausblenden        |
 | Ctrl+T  | Tabellen-Gerüst einfügen        |
+| Ctrl+N  | Tabellenzeile hinzufügen        |
+| Ctrl+O  | Tabellenzeile entfernen         |
+| Ctrl+B  | Tabellenspalte hinzufügen       |
+| Ctrl+F  | Tabellenspalte entfernen        |
 | Ctrl+G  | Bild-Link einfügen              |
 | Ctrl+P  | Befehlspalette (Textual)        |
 
+Die Tabellen-Kürzel wirken auf die Tabelle, in der der Cursor gerade steht.
 Die Vorschau aktualisiert sich zusätzlich automatisch ~0,5 s nach der letzten
 Eingabe.
+
+Alle Kürzel sind auch mit Cmd statt Ctrl hinterlegt — das funktioniert aber
+nur in Terminals, die Cmd an Programme durchreichen (Ghostty, kitty, WezTerm).
+Apple Terminal behält Cmd-Kürzel für sich (Cmd+Q würde das Terminal beenden).
 
 ## Bilder
 
 Ein Bild erscheint in der Vorschau, wenn sein Link allein auf einer Zeile steht:
 `![Beschreibung](diagramm.png)` — Pfade relativ zur Notiz-Datei.
+
+Am schnellsten: **Bilddatei aus dem Finder ins Terminal ziehen.** Der Pfad wird
+erkannt und automatisch in einen Markdown-Link umgewandelt — landet der Drop auf
+einer `![…](…)`-Zeile (z.B. frisch per Ctrl+G erzeugt), wird deren Pfad ersetzt,
+sonst wird ein neuer Link an der Cursorposition eingefügt. Liegt das Bild im
+Ordner der Notiz, wird der Link automatisch relativ.
 
 Die Darstellungsqualität hängt vom Terminal ab: Apple Terminal zeigt
 Pixelblöcke, kitty/Ghostty/iTerm2/WezTerm zeigen scharfe Grafiken

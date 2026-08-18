@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from rich.style import Style
+from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
@@ -30,6 +31,12 @@ except Exception:
 # Eine Zeile, die nur aus einem Bild-Link besteht: ![Alt](pfad)
 # Leerzeichen im Pfad sind erlaubt, optional in <spitzen Klammern>.
 IMAGE_LINE = re.compile(r"^\s*!\[[^\]]*\]\(<?([^)>]+)>?\)\s*$")
+IMAGE_LINK = re.compile(r"^(\s*)!\[([^\]]*)\]\([^)]*\)\s*$")
+TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+SEP_CELL = re.compile(r":?-+:?")
+
+# Formate, die PIL/textual-image sicher rendern kann
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
 LIGHT_THEME = Theme(
     name="notiz-light",
@@ -75,7 +82,18 @@ TABLE_SNIPPET = (
     "|          |          |\n\n"
 )
 
-IMAGE_SNIPPET = "\n![Beschreibung](bild.png)\n"
+IMAGE_SNIPPET = "\n![Beschreibung](bild.png)"
+
+
+class NoteEditor(TextArea):
+    """TextArea, die gedroppte Bilddateien als Markdown-Link einfügt."""
+
+    async def _on_paste(self, event: events.Paste) -> None:
+        app = self.app
+        if isinstance(app, NotizApp) and app.handle_image_drop(self, event.text):
+            event.stop()
+            return
+        await super()._on_paste(event)
 
 
 class NotizApp(App):
@@ -103,12 +121,18 @@ class NotizApp(App):
     }
     """
 
+    # super+X = Cmd-Taste; funktioniert nur in Terminals, die Cmd durchreichen
+    # (Ghostty, kitty, WezTerm) – Apple Terminal fängt Cmd selbst ab.
     BINDINGS = [
-        Binding("ctrl+s", "save", "Speichern"),
-        Binding("ctrl+r", "toggle_preview", "Vorschau an/aus"),
-        Binding("ctrl+t", "insert_table", "Tabelle einfügen"),
-        Binding("ctrl+g", "insert_image", "Bild-Link einfügen"),
-        Binding("ctrl+q", "quit_save", "Speichern & Beenden"),
+        Binding("ctrl+s,super+s", "save", "Speichern"),
+        Binding("ctrl+r,super+r", "toggle_preview", "Vorschau"),
+        Binding("ctrl+t,super+t", "insert_table", "Tabelle"),
+        Binding("ctrl+n,super+n", "add_table_row", "+Zeile"),
+        Binding("ctrl+o,super+o", "remove_table_row", "−Zeile"),
+        Binding("ctrl+b,super+b", "add_table_column", "+Spalte"),
+        Binding("ctrl+f,super+f", "remove_table_column", "−Spalte"),
+        Binding("ctrl+g,super+g", "insert_image", "Bild"),
+        Binding("ctrl+q,super+q", "quit_save", "Beenden"),
     ]
 
     def __init__(self, note_path: Path) -> None:
@@ -122,7 +146,7 @@ class NotizApp(App):
         text = ""
         if self.note_path.exists():
             text = self.note_path.read_text(encoding="utf-8")
-        editor = TextArea.code_editor(text, id="editor", soft_wrap=True)
+        editor = NoteEditor.code_editor(text, id="editor", soft_wrap=True)
         try:
             editor.language = "markdown"
         except Exception:
@@ -173,7 +197,7 @@ class NotizApp(App):
             if match and Image is not None and "://" not in match.group(1):
                 raw = match.group(1).strip().replace("\\ ", " ")
                 img_path = (base / raw).expanduser()
-                if img_path.is_file():
+                if img_path.is_file() and img_path.suffix.lower() in IMAGE_EXTS:
                     flush()
                     image = Image(str(img_path))
                     image.add_class("note-image")
@@ -203,10 +227,126 @@ class NotizApp(App):
         self.query_one("#preview").toggle_class("hidden")
 
     def action_insert_table(self) -> None:
-        self.query_one("#editor", TextArea).insert(TABLE_SNIPPET)
+        self._editor().insert(TABLE_SNIPPET)
 
     def action_insert_image(self) -> None:
-        self.query_one("#editor", TextArea).insert(IMAGE_SNIPPET)
+        self._editor().insert(IMAGE_SNIPPET)
+
+    # ---------- Tabellen ----------
+
+    def _editor(self) -> TextArea:
+        return self.query_one("#editor", TextArea)
+
+    def _table_bounds(self, editor: TextArea) -> tuple[int, int] | None:
+        doc = editor.document
+        row = editor.cursor_location[0]
+        if not TABLE_ROW.match(doc.get_line(row)):
+            return None
+        start = row
+        while start > 0 and TABLE_ROW.match(doc.get_line(start - 1)):
+            start -= 1
+        end = row
+        while end < doc.line_count - 1 and TABLE_ROW.match(doc.get_line(end + 1)):
+            end += 1
+        return start, end
+
+    def _table_or_warn(self, editor: TextArea) -> tuple[int, int] | None:
+        bounds = self._table_bounds(editor)
+        if bounds is None:
+            self.notify("Cursor steht in keiner Tabelle", severity="warning", timeout=3)
+        return bounds
+
+    @staticmethod
+    def _cells(line: str) -> list[str]:
+        return [c.strip() for c in line.strip().strip("|").split("|")]
+
+    @classmethod
+    def _is_separator(cls, line: str) -> bool:
+        cells = cls._cells(line)
+        return bool(cells) and all(SEP_CELL.fullmatch(c) for c in cells)
+
+    def action_add_table_row(self) -> None:
+        editor = self._editor()
+        if (bounds := self._table_or_warn(editor)) is None:
+            return
+        start, end = bounds
+        cols = len(self._cells(editor.document.get_line(start)))
+        last = editor.document.get_line(end)
+        editor.insert("\n|" + "   |" * cols, (end, len(last)))
+
+    def action_remove_table_row(self) -> None:
+        editor = self._editor()
+        if self._table_or_warn(editor) is None:
+            return
+        doc = editor.document
+        row = editor.cursor_location[0]
+        if row + 1 < doc.line_count:
+            editor.replace("", (row, 0), (row + 1, 0))
+        elif row > 0:
+            editor.replace("", (row - 1, len(doc.get_line(row - 1))), (row, len(doc.get_line(row))))
+        else:
+            editor.replace("", (row, 0), (row, len(doc.get_line(row))))
+
+    def _change_table_columns(self, delta: int) -> None:
+        editor = self._editor()
+        if (bounds := self._table_or_warn(editor)) is None:
+            return
+        start, end = bounds
+        doc = editor.document
+        lines = [doc.get_line(i) for i in range(start, end + 1)]
+        if delta < 0 and len(self._cells(lines[0])) <= 1:
+            self.notify("Nur noch eine Spalte", severity="warning", timeout=3)
+            return
+        new_lines = []
+        for line in lines:
+            stripped = line.rstrip()
+            if not stripped.endswith("|"):
+                stripped += " |"
+            if delta > 0:
+                stripped += "---|" if self._is_separator(stripped) else "   |"
+            else:
+                body = stripped[:-1]
+                stripped = body[: body.rfind("|") + 1]
+            new_lines.append(stripped)
+        editor.replace("\n".join(new_lines), (start, 0), (end, len(lines[-1])))
+
+    def action_add_table_column(self) -> None:
+        self._change_table_columns(1)
+
+    def action_remove_table_column(self) -> None:
+        self._change_table_columns(-1)
+
+    # ---------- Bild per Drag & Drop ----------
+
+    def handle_image_drop(self, editor: TextArea, pasted: str) -> bool:
+        """Verwandelt einen gedroppten Bild-Dateipfad in einen Markdown-Link.
+
+        Gibt False zurück, wenn der Text kein Pfad zu einer Bilddatei ist –
+        dann greift das normale Einfügen.
+        """
+        text = pasted.strip()
+        if not text:
+            return False
+        candidate = text.splitlines()[0].strip().strip("'\"").replace("\\ ", " ")
+        path = Path(candidate).expanduser()
+        if path.suffix.lower() not in IMAGE_EXTS or not path.is_file():
+            return False
+        path = path.resolve()
+        try:
+            link = str(path.relative_to(self.note_path.parent.resolve()))
+        except ValueError:
+            link = str(path)
+        row = editor.cursor_location[0]
+        line = editor.document.get_line(row)
+        match = IMAGE_LINK.match(line)
+        if match:
+            desc = match.group(2)
+            if desc in ("", "Beschreibung"):
+                desc = path.stem
+            editor.replace(f"{match.group(1)}![{desc}]({link})", (row, 0), (row, len(line)))
+        else:
+            editor.insert(f"![{path.stem}]({link})")
+        return True
 
     def action_quit_save(self) -> None:
         if self.dirty:
