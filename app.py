@@ -14,6 +14,7 @@ import asyncio
 import io
 import os
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -505,21 +506,18 @@ class NotizApp(App):
 
     @staticmethod
     def _refresh_preview_app(pdf_path: Path) -> None:
-        """Preview.app lädt geänderte PDFs erst beim Fokussieren neu –
-        kurz anstupsen und den Fokus sofort ans Terminal zurückgeben.
-        (Skim braucht das nicht, es lädt Änderungen selbst nach.)"""
+        """Preview.app lädt geänderte PDFs erst neu, wenn es aktiviert wird –
+        kurz nach vorn holen und den Fokus ans Terminal zurückgeben.
+        `open -a` aktiviert zuverlässig und braucht keine Automation-Rechte.
+        (Skim braucht das alles nicht, es lädt Änderungen selbst nach.)"""
         term = {"Apple_Terminal": "Terminal", "iTerm.app": "iTerm"}.get(
             os.environ.get("TERM_PROGRAM", "")
         )
         if term is None:
             return
-        script = (
-            f'tell application "Preview" to open POSIX file "{pdf_path}"\n'
-            "delay 0.2\n"
-            f'tell application "{term}" to activate'
-        )
+        pdf = shlex.quote(str(pdf_path))
         subprocess.Popen(
-            ["osascript", "-e", script],
+            ["/bin/sh", "-c", f"open -a Preview {pdf}; sleep 0.45; open -a {term}"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
 
