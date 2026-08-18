@@ -125,6 +125,15 @@ async def main() -> None:
         md_out = app._md_for_export("eins\n\n\n\nzwei")
         assert "<br><br>" in md_out, f"Leerzeilen im Export nicht erhalten: {md_out!r}"
 
+        # Tabelle direkt unter Text muss im PDF-Export trotzdem Tabelle werden
+        import markdown as md_lib
+        html = md_lib.markdown(
+            app._md_for_export("hallo test\n| wtf |  |\n|-----|-----|\n| a |  |\ndanach"),
+            extensions=["tables", "fenced_code"],
+        )
+        assert "<table>" in html, f"Tabelle nicht erkannt: {html!r}"
+        assert "danach" in html and "|" not in html.replace("<table>", ""), html
+
         # PDF-Export (nur wenn ein Chrome-Browser vorhanden ist)
         from app import CHROME_PATHS
         if any(Path(p).is_file() for p in CHROME_PATHS):

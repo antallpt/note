@@ -490,6 +490,19 @@ class NotizApp(App):
                 lines.append(f"![{match.group(1)}]({quote(raw, safe='/')})")
             else:
                 lines.append(line)
+        # python-markdown erkennt Tabellen nur als eigenen Block –
+        # fehlende Leerzeilen davor/danach ergänzen.
+        adjusted: list[str] = []
+        in_table = False
+        for line in lines:
+            is_table = bool(TABLE_ROW.match(line))
+            if is_table and not in_table and adjusted and adjusted[-1].strip():
+                adjusted.append("")
+            if not is_table and in_table and line.strip():
+                adjusted.append("")
+            adjusted.append(line)
+            in_table = is_table
+        lines = adjusted
         out: list[str] = []
         run = 0
         for line in lines:
