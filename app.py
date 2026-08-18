@@ -11,7 +11,9 @@ Aufruf:  note [datei]   – ohne Endung wird .md angehängt,
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from rich.style import Style
@@ -24,9 +26,27 @@ from textual.widgets import Footer, Header, Markdown, TextArea
 from textual.widgets.text_area import TextAreaTheme
 
 try:
+    from textual_image.renderable import Image as _ImageRenderable
     from textual_image.widget import Image
 except Exception:
     Image = None
+
+if Image is not None:
+
+    class NoteImage(Image, Renderable=_ImageRenderable):
+        """Vorschau-Bild; Klick öffnet die Datei in voller Qualität."""
+
+        def __init__(self, path: Path) -> None:
+            super().__init__(str(path))
+            self._img_path = path
+            self.tooltip = "Klicken: Bild in voller Qualität öffnen"
+
+        def on_click(self, event: events.Click) -> None:
+            opener = "open" if sys.platform == "darwin" else "xdg-open"
+            subprocess.Popen([opener, str(self._img_path)])
+
+else:
+    NoteImage = None
 
 # Eine Zeile, die nur aus einem Bild-Link besteht: ![Alt](pfad)
 # Leerzeichen im Pfad sind erlaubt, optional in <spitzen Klammern>.
@@ -158,10 +178,14 @@ class NotizApp(App):
             editor.language = "markdown"
         except Exception:
             pass
+        # Vorschau darf keinen Fokus bekommen, sonst landen Tastatur-
+        # eingaben (auch Drag & Drop-Pfade) nicht im Editor.
+        preview = VerticalScroll(id="preview")
+        preview.can_focus = False
         yield Header()
         with Horizontal():
             yield editor
-            yield VerticalScroll(id="preview")
+            yield preview
         yield Footer()
 
     def on_mount(self) -> None:
@@ -209,7 +233,7 @@ class NotizApp(App):
                 img_path = (base / raw).expanduser()
                 if img_path.is_file() and img_path.suffix.lower() in IMAGE_EXTS:
                     flush()
-                    image = Image(str(img_path))
+                    image = NoteImage(img_path)
                     image.add_class("note-image")
                     widgets.append(image)
                     continue
@@ -244,7 +268,81 @@ class NotizApp(App):
         editor.move_cursor((row + 1, 2))
 
     def action_insert_image(self) -> None:
-        self._editor().insert(IMAGE_SNIPPET)
+        """Fügt ein Bild ein: kopierte Datei oder Screenshot aus der
+        Zwischenablage; sonst die Link-Vorlage."""
+        editor = self._editor()
+        clip_file = self._clipboard_file_path()
+        if clip_file is not None and clip_file.suffix.lower() in IMAGE_EXTS:
+            self._insert_image_link(editor, clip_file)
+            self.notify(f"Verlinkt: {clip_file.name}", timeout=3)
+            return
+        dest_dir = self.note_path.parent / "bilder"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / f"bild-{datetime.now():%Y%m%d-%H%M%S}.png"
+        if self._clipboard_png_to(dest):
+            self._insert_image_link(editor, dest)
+            self.notify(f"Screenshot gespeichert: bilder/{dest.name}", timeout=3)
+            return
+        try:
+            dest_dir.rmdir()  # nur entfernen, wenn leer angelegt
+        except OSError:
+            pass
+        editor.insert(IMAGE_SNIPPET)
+
+    @staticmethod
+    def _clipboard_file_path() -> Path | None:
+        """Pfad einer im Finder kopierten Datei, sonst None."""
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", "POSIX path of (the clipboard as «class furl»)"],
+                capture_output=True, text=True, timeout=3,
+            )
+        except Exception:
+            return None
+        if result.returncode != 0:
+            return None
+        path = Path(result.stdout.strip())
+        return path if path.is_file() else None
+
+    @staticmethod
+    def _clipboard_png_to(dest: Path) -> bool:
+        """Schreibt Bilddaten aus der Zwischenablage (z.B. Screenshot) als PNG."""
+        script = (
+            f'set outFile to (open for access POSIX file "{dest}" with write permission)\n'
+            "try\n"
+            "    write (the clipboard as «class PNGf») to outFile\n"
+            "    close access outFile\n"
+            "on error\n"
+            "    close access outFile\n"
+            "    error\n"
+            "end try\n"
+        )
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", script], capture_output=True, timeout=5
+            )
+        except Exception:
+            result = None
+        ok = (
+            result is not None
+            and result.returncode == 0
+            and dest.is_file()
+            and dest.stat().st_size > 0
+        )
+        if not ok and dest.exists():
+            dest.unlink()
+        return ok
+
+    def _insert_image_link(self, editor: TextArea, path: Path) -> None:
+        path = path.resolve()
+        try:
+            link = str(path.relative_to(self.note_path.parent.resolve()))
+        except ValueError:
+            link = str(path)
+        row = editor.cursor_location[0]
+        line = editor.document.get_line(row)
+        prefix = "" if not line.strip() else "\n"
+        editor.insert(f"{prefix}![{path.stem}]({link})")
 
     # ---------- Tabellen ----------
 
@@ -427,6 +525,15 @@ class NotizApp(App):
             return
 
     # ---------- Bild per Drag & Drop ----------
+
+    def on_paste(self, event: events.Paste) -> None:
+        """Sicherheitsnetz: Paste/Drop, der nicht im fokussierten Editor landete."""
+        editor = self._editor()
+        if editor.has_focus:
+            return  # NoteEditor hat das Event bereits verarbeitet
+        if not self.handle_image_drop(editor, event.text):
+            editor.insert(event.text)
+        event.stop()
 
     def handle_image_drop(self, editor: TextArea, pasted: str) -> bool:
         """Verwandelt einen gedroppten Bild-Dateipfad in einen Markdown-Link.

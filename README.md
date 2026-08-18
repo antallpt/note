@@ -44,7 +44,7 @@ alias note='"/pfad/zu/notiz/note"'
 | Ctrl+O  | Tabellenzeile entfernen         |
 | Ctrl+B  | Tabellenspalte hinzufügen       |
 | Ctrl+F  | Tabellenspalte entfernen        |
-| Ctrl+G  | Bild-Link einfügen              |
+| Ctrl+G  | Bild einfügen (aus Zwischenablage, sonst Vorlage) |
 | Ctrl+P  | Befehlspalette (Textual)        |
 
 Die Tabellen-Kürzel wirken auf die Tabelle, in der der Cursor gerade steht.
@@ -67,18 +67,24 @@ Cursor bleibt dabei in seiner Zelle.
 Ein Bild erscheint in der Vorschau, wenn sein Link allein auf einer Zeile steht:
 `![Beschreibung](diagramm.png)` — Pfade relativ zur Notiz-Datei.
 
-Am schnellsten: **Bilddatei aus dem Finder ins Terminal ziehen.** Der Pfad wird
-erkannt und automatisch in einen Markdown-Link umgewandelt — egal ob das
-Terminal den Drop als Paste-Event oder als getippten Text übergibt (dann greift
-die Umwandlung ~0,5 s später). Landet der Pfad auf einer `![…](…)`-Zeile
-(z.B. frisch per Ctrl+G erzeugt), wird deren Platzhalter ersetzt, sonst wird ein
-Link an Ort und Stelle eingefügt. Auch von Hand getippte Pfade zu existierenden
-Bildern werden so verlinkt. Liegt das Bild im Ordner der Notiz, wird der Link
-automatisch relativ.
+Der schnellste Weg ist die **Zwischenablage mit Ctrl+G**:
 
-Die Darstellungsqualität hängt vom Terminal ab: Apple Terminal zeigt
-Pixelblöcke, kitty/Ghostty/iTerm2/WezTerm zeigen scharfe Grafiken
-(Kitty-Graphics-Protokoll bzw. Sixel).
+- **Screenshot:** Mit Cmd+Ctrl+Shift+4 einen Bereich in die Zwischenablage
+  fotografieren, dann in der Notiz Ctrl+G — das PNG wird automatisch unter
+  `bilder/` neben der Notiz gespeichert und verlinkt.
+- **Datei:** Im Finder eine Bilddatei kopieren (Cmd+C), dann Ctrl+G — die Datei
+  wird direkt verlinkt.
+- Ist nichts Passendes in der Zwischenablage, fügt Ctrl+G die Link-Vorlage ein.
+
+Auch **Drag & Drop aus dem Finder** und von Hand getippte Pfade zu
+existierenden Bildern werden automatisch in Links umgewandelt (~0,5 s nach der
+Eingabe). Liegt das Bild im Ordner der Notiz, wird der Link relativ.
+
+Die Darstellungsqualität hängt vom Terminal ab: Apple Terminal beherrscht kein
+Grafikprotokoll (auch nicht per Plugin), dort werden Bilder als farbige
+Pixelblöcke gerendert — **ein Klick auf ein Bild in der Vorschau öffnet es in
+voller Qualität in der Vorschau-App.** kitty/Ghostty/iTerm2/WezTerm zeigen
+Bilder direkt scharf an (Kitty-Graphics-Protokoll bzw. Sixel).
 
 ## Entwicklung
 

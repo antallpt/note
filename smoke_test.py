@@ -11,6 +11,9 @@ from app import NotizApp
 async def main() -> None:
     note = Path(__file__).parent / "beispiel" / "Beispiel.md"
     app = NotizApp(note)
+    # Zwischenablage im Test deterministisch "leer" halten
+    app._clipboard_file_path = lambda: None
+    app._clipboard_png_to = lambda dest: False
     async with app.run_test(size=(140, 40)) as pilot:
         await pilot.pause(1.0)
 
@@ -33,6 +36,7 @@ async def main() -> None:
         app.action_toggle_preview()
         assert app.query_one("#preview").has_class("hidden")
         app.action_toggle_preview()
+        assert not app.query_one("#preview").can_focus, "Vorschau darf keinen Fokus nehmen"
 
         # Tabellen erweitern/verkleinern: Cursor in die eingefuegte Tabelle setzen
         editor.move_cursor((header_row + 2, 2))
@@ -81,6 +85,13 @@ async def main() -> None:
         editor.move_cursor((0, 0))
         app._auto_link_images(editor)
         line = editor.document.get_line(0)
+        assert line == "![diagramm](diagramm.png)", f"Unerwartet: {line!r}"
+
+        # Direktes Verlinken (Zwischenablage-Pfad): eigene Zeile unter Text
+        editor.load_text("Text davor")
+        editor.move_cursor((0, 10))
+        app._insert_image_link(editor, img)
+        line = editor.document.get_line(1)
         assert line == "![diagramm](diagramm.png)", f"Unerwartet: {line!r}"
 
         # Live-Autoformat: unordentliche Tabelle wird buendig ausgerichtet
