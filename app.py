@@ -22,8 +22,8 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
 from textual.theme import Theme
-from textual.widgets import Footer, Header, Markdown, TextArea
-from textual.widgets.text_area import TextAreaTheme
+from textual.widgets import Footer, Header, Markdown, Static, TextArea
+from textual.widgets.text_area import Selection, TextAreaTheme
 
 try:
     from textual_image.renderable import Image as _ImageRenderable
@@ -48,9 +48,9 @@ if Image is not None:
 else:
     NoteImage = None
 
-# Eine Zeile, die nur aus einem Bild-Link besteht: ![Alt](pfad)
+# Eine Zeile, die nur aus einem Bild-Link besteht: ![Titel](pfad)
 # Leerzeichen im Pfad sind erlaubt, optional in <spitzen Klammern>.
-IMAGE_LINE = re.compile(r"^\s*!\[[^\]]*\]\(<?([^)>]+)>?\)\s*$")
+IMAGE_LINE = re.compile(r"^\s*!\[([^\]]*)\]\(<?([^)>]+)>?\)\s*$")
 IMAGE_LINK = re.compile(r"^(\s*)!\[([^\]]*)\]\([^)]*\)\s*$")
 TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
 SEP_CELL = re.compile(r":?-+:?")
@@ -144,7 +144,12 @@ class NotizApp(App):
     .note-image {
         height: 18;
         width: auto;
-        margin: 1 0;
+        margin: 1 0 0 0;
+    }
+    .image-caption {
+        color: $secondary;
+        text-style: italic;
+        margin: 0 0 1 0;
     }
     """
 
@@ -228,14 +233,17 @@ class NotizApp(App):
 
         for line in text.splitlines():
             match = IMAGE_LINE.match(line)
-            if match and Image is not None and "://" not in match.group(1):
-                raw = match.group(1).strip().replace("\\ ", " ")
+            if match and Image is not None and "://" not in match.group(2):
+                raw = match.group(2).strip().replace("\\ ", " ")
                 img_path = (base / raw).expanduser()
                 if img_path.is_file() and img_path.suffix.lower() in IMAGE_EXTS:
                     flush()
                     image = NoteImage(img_path)
                     image.add_class("note-image")
                     widgets.append(image)
+                    title = match.group(1).strip()
+                    if title:
+                        widgets.append(Static(title, classes="image-caption"))
                     continue
             buffer.append(line)
         flush()
@@ -339,10 +347,14 @@ class NotizApp(App):
             link = str(path.relative_to(self.note_path.parent.resolve()))
         except ValueError:
             link = str(path)
-        row = editor.cursor_location[0]
+        row, col = editor.cursor_location
         line = editor.document.get_line(row)
         prefix = "" if not line.strip() else "\n"
         editor.insert(f"{prefix}![{path.stem}]({link})")
+        if prefix:
+            self._select_title(editor, row + 1, 2, path.stem)
+        else:
+            self._select_title(editor, row, col + 2, path.stem)
 
     # ---------- Tabellen ----------
 
@@ -519,9 +531,13 @@ class NotizApp(App):
                 if desc in ("", "Beschreibung"):
                     desc = path.stem
                 new_line = f"{template.group(1)}![{desc}]({link})"
+                desc_col = len(template.group(1)) + 2
             else:
-                new_line = f"{line[: match.start()]}![{path.stem}]({link}){line[match.end():]}"
+                desc = path.stem
+                new_line = f"{line[: match.start()]}![{desc}]({link}){line[match.end():]}"
+                desc_col = match.start() + 2
             editor.replace(new_line, (row, 0), (row, len(line)))
+            self._select_title(editor, row, desc_col, desc)
             return
 
     # ---------- Bild per Drag & Drop ----------
@@ -561,9 +577,17 @@ class NotizApp(App):
             if desc in ("", "Beschreibung"):
                 desc = path.stem
             editor.replace(f"{match.group(1)}![{desc}]({link})", (row, 0), (row, len(line)))
+            self._select_title(editor, row, len(match.group(1)) + 2, desc)
         else:
+            row, col = editor.cursor_location
             editor.insert(f"![{path.stem}]({link})")
+            self._select_title(editor, row, col + 2, path.stem)
         return True
+
+    @staticmethod
+    def _select_title(editor: TextArea, row: int, col: int, title: str) -> None:
+        """Markiert den Bildtitel, damit er direkt überschrieben werden kann."""
+        editor.selection = Selection((row, col), (row, col + len(title)))
 
     def action_quit_save(self) -> None:
         if self.dirty:

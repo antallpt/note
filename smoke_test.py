@@ -22,6 +22,7 @@ async def main() -> None:
 
         images = [w for w in app.query("#preview *") if "note-image" in w.classes]
         assert images, "Vorschau enthaelt kein Bild-Widget"
+        assert app.query(".image-caption"), "Bildunterschrift fehlt in der Vorschau"
 
         editor = app.query_one("#editor", TextArea)
         editor.insert("\n\nNeuer Testabsatz.\n")
@@ -79,6 +80,7 @@ async def main() -> None:
         app._auto_link_images(editor)
         line = editor.document.get_line(0)
         assert line == "Notiz dazu: ![diagramm](diagramm.png)", f"Unerwartet: {line!r}"
+        assert editor.selected_text == "diagramm", "Titel ist nach Auto-Link nicht markiert"
 
         # ... und auf der Ctrl+G-Zeile ersetzt er den Platzhalter komplett
         editor.load_text("![Beschreibung](bild.png)" + escaped)
@@ -103,6 +105,16 @@ async def main() -> None:
         assert lines2[1] == "|----------|-------|-------|", lines2[1]
         assert lines2[2] == "|          | test  | test  |", lines2[2]
         assert editor.cursor_location == (2, 2), editor.cursor_location
+
+        # Undo/Redo mit Ctrl+Z / Ctrl+Y
+        editor.load_text("abc")
+        editor.move_cursor((0, 3))
+        await pilot.press("x")
+        assert editor.text == "abcx"
+        await pilot.press("ctrl+z")
+        assert editor.text == "abc", "Ctrl+Z hat nicht rueckgaengig gemacht"
+        await pilot.press("ctrl+y")
+        assert editor.text == "abcx", "Ctrl+Y hat nicht wiederhergestellt"
 
     print("OK: Editor, Vorschau, Tabellen-Shortcuts, Autoformat und Bild-Drop funktionieren")
 

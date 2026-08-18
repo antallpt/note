@@ -45,6 +45,7 @@ alias note='"/pfad/zu/notiz/note"'
 | Ctrl+B  | Tabellenspalte hinzufügen       |
 | Ctrl+F  | Tabellenspalte entfernen        |
 | Ctrl+G  | Bild einfügen (aus Zwischenablage, sonst Vorlage) |
+| Ctrl+Z / Ctrl+Y | Rückgängig / Wiederherstellen |
 | Ctrl+P  | Befehlspalette (Textual)        |
 
 Die Tabellen-Kürzel wirken auf die Tabelle, in der der Cursor gerade steht.
@@ -79,6 +80,10 @@ Der schnellste Weg ist die **Zwischenablage mit Ctrl+G**:
 Auch **Drag & Drop aus dem Finder** und von Hand getippte Pfade zu
 existierenden Bildern werden automatisch in Links umgewandelt (~0,5 s nach der
 Eingabe). Liegt das Bild im Ordner der Notiz, wird der Link relativ.
+
+Nach dem Verlinken ist der **Titel markiert** (vorbelegt mit dem Dateinamen) —
+einfach lostippen, um ihn zu ersetzen; Pfeiltaste rechts behält ihn. Der Titel
+erscheint in der Vorschau als Bildunterschrift unter dem Bild.
 
 Die Darstellungsqualität hängt vom Terminal ab: Apple Terminal beherrscht kein
 Grafikprotokoll (auch nicht per Plugin), dort werden Bilder als farbige
