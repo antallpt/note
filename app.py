@@ -174,25 +174,34 @@ CHROME_PATHS = [
     "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
 ]
 
+# Grau-Palette nach der Tailwind-"Neutral"-Skala (reines Grau, kein Blaustich).
+# Hierarchie: H1 am dunkelsten, dann abgestuft heller bis zum Fließtext.
+# Kontraste auf Weiß (WCAG): H1 17,9:1 · H2 10,4:1 · H3 7,8:1 · Text 4,7:1 (AA).
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>{title}</title><style>
 @page {{ margin: 1.5cm; }}
-body {{ font-family: -apple-system, 'Helvetica Neue', sans-serif; color: #1f1f1f;
+body {{ font-family: -apple-system, 'Helvetica Neue', sans-serif; color: #737373;
        max-width: 720px; margin: 0 auto; line-height: 1.5; font-size: 11pt; }}
-h1 {{ font-size: 1.5em; text-align: center; }}
-h2 {{ font-size: 1.25em; }}
-h3 {{ font-size: 1.1em; }}
-h1, h2, h3 {{ color: #111111; margin: 0.8em 0 0.35em; break-after: avoid; }}
+h1 {{ font-size: 1.5em; text-align: center; color: #171717; }}
+h2 {{ font-size: 1.25em; color: #404040; }}
+h3 {{ font-size: 1.1em; color: #525252; }}
+h1, h2, h3 {{ margin: 0.8em 0 0.35em; break-after: avoid; }}
 p {{ margin: 0.4em 0; }}
+strong {{ color: #262626; }}
+a {{ color: #525252; }}
+li::marker {{ color: #a3a3a3; }}
 table {{ border-collapse: collapse; margin: 0.7em 0; break-inside: avoid; }}
-th, td {{ border: 1px solid #9a9a9a; padding: 0.3em 0.6em; text-align: left; }}
-th {{ background: #f0f0f0; }}
+th, td {{ border: 1px solid #d4d4d4; padding: 0.3em 0.6em; text-align: left; }}
+th {{ background: #f5f5f5; color: #262626; }}
+tr:nth-child(even) td {{ background: #fafafa; }}
 img {{ max-width: 100%; max-height: 10cm; width: auto; height: auto;
       display: block; margin: 0.5em 0; break-inside: avoid; }}
-code {{ background: #f2f2f2; padding: 0.1em 0.3em; border-radius: 3px; }}
+code {{ background: #f5f5f5; color: #404040; padding: 0.1em 0.3em; border-radius: 3px; }}
 pre {{ break-inside: avoid; }}
 pre code {{ display: block; padding: 0.8em; overflow-x: auto; }}
-blockquote {{ border-left: 3px solid #c0c0c0; margin-left: 0; padding-left: 1em; color: #4a4a4a; }}
+blockquote {{ border-left: 3px solid #d4d4d4; margin-left: 0; padding-left: 1em;
+             color: #737373; font-style: italic; }}
+hr {{ border: none; border-top: 1px solid #e5e5e5; margin: 1em 0; }}
 </style></head><body>
 {body}
 </body></html>
@@ -703,6 +712,41 @@ class NotizApp(App):
         lines = [doc.get_line(i) for i in range(start, end + 1)]
         rows = [self._cells(line) for line in lines]
         seps = [self._is_separator(line) for line in lines]
+
+        # "- " am Zellanfang wird zum Aufzählungszeichen – echte Markdown-
+        # Listen sind in Tabellenzellen nicht möglich.
+        for r, sep in zip(rows, seps):
+            if sep:
+                continue
+            for i, cell in enumerate(r):
+                if cell.startswith("- "):
+                    r[i] = "•" + cell[1:]
+
+        # Gerade getippte Leerzeichen vor dem Cursor nicht wegtrimmen,
+        # sonst verschwindet das Leerzeichen von "- " beim Tippen.
+        cursor_row, cursor_col = editor.cursor_location
+        cur_rel = cursor_row - start
+        cursor_keep = None
+        if 0 <= cur_rel < len(lines) and not seps[cur_rel]:
+            cur_line = lines[cur_rel]
+            pipes = [i for i, ch in enumerate(cur_line) if ch == "|"]
+            if pipes:
+                cell_idx, _ = self._cell_cursor(cur_line, cursor_col)
+                inner_start = pipes[cell_idx] + 1
+                inner_end = pipes[cell_idx + 1] if cell_idx + 1 < len(pipes) else len(cur_line)
+                inner = cur_line[inner_start:inner_end]
+                lead = len(inner) - len(inner.lstrip())
+                raw_off = max(0, cursor_col - inner_start - lead)
+                if cell_idx < len(rows[cur_rel]):
+                    base = rows[cur_rel][cell_idx]
+                    keep_len = min(max(len(base), raw_off), max(len(inner) - lead, 0))
+                    if keep_len > len(base):
+                        kept = inner[lead:lead + keep_len]
+                        if kept.startswith("- "):
+                            kept = "•" + kept[1:]
+                        rows[cur_rel][cell_idx] = kept
+                    cursor_keep = (cell_idx, min(raw_off, keep_len))
+
         ncols = max(len(r) for r in rows)
         widths = [3] * ncols
         for r, sep in zip(rows, seps):
@@ -727,6 +771,8 @@ class NotizApp(App):
             return
         row, col = editor.cursor_location
         cell, offset = self._cell_cursor(lines[row - start], col)
+        if cursor_keep is not None and cursor_keep[0] == cell:
+            offset = cursor_keep[1]
         editor.replace("\n".join(new_lines), (start, 0), (end, len(lines[-1])))
         new_line = new_lines[row - start]
         pipes = [i for i, ch in enumerate(new_line) if ch == "|"]

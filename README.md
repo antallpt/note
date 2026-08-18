@@ -97,6 +97,11 @@ Der Export nutzt einen installierten Chrome/Chromium/Brave/Edge als
 PDF-Renderer (headless). Das PDF eignet sich auch direkt zum Abgeben oder
 Teilen.
 
+Das PDF nutzt eine abgestufte Grau-Palette (Tailwind-„Neutral"-Skala,
+WCAG-AA-geprüft): Haupttitel fast schwarz (#171717), Unterüberschriften
+abgestuft (#404040, #525252), Fließtext hellgrau (#737373), Tabellen mit
+abgesetzter Kopfzeile und Zebra-Streifen, dezente graue Aufzählungspunkte.
+
 Da Preview.app geänderte PDFs erst beim Fokussieren neu lädt, stupst die App
 das Fenster nach jedem Export kurz an und gibt den Fokus sofort ans Terminal
 zurück (kurzes Flackern). Komplett flackerfrei wird es mit

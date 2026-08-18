@@ -134,6 +134,20 @@ async def main() -> None:
         assert "<table>" in html, f"Tabelle nicht erkannt: {html!r}"
         assert "danach" in html and "|" not in html.replace("<table>", ""), html
 
+        # Stichpunkte in Tabellen: "- " am Zellanfang wird zu "• "
+        editor.load_text("| a | b |\n|---|---|\n| - Test | x |")
+        editor.move_cursor((2, 3))
+        app._format_table(editor)
+        assert "• Test" in editor.document.get_line(2), editor.document.get_line(2)
+
+        # Gerade getipptes "- " (Cursor dahinter) ueberlebt das Autoformat
+        editor.load_text("| a | b |\n|---|---|\n| -  | x |")
+        editor.move_cursor((2, 4))
+        app._format_table(editor)
+        line = editor.document.get_line(2)
+        _, col2 = editor.cursor_location
+        assert line[col2 - 2:col2] == "• ", (line, col2)
+
         # PDF-Export (nur wenn ein Chrome-Browser vorhanden ist)
         from app import CHROME_PATHS
         if any(Path(p).is_file() for p in CHROME_PATHS):
