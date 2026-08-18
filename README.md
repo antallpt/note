@@ -1,12 +1,17 @@
-# notiz
+# note
 
 Markdown-Notizen im Terminal: Editor links (normale Navigation, kein Vim),
-Live-Vorschau rechts mit gerenderten Tabellen und Bildern. Gebaut mit
-[Textual](https://textual.textualize.io).
+Live-Vorschau rechts mit gerenderten Tabellen und Bildern, Live-PDF-Export.
+Gebaut mit [Textual](https://textual.textualize.io).
 
 ![Screenshot](docs/screenshot.png)
 
 ## Installation
+
+Voraussetzungen: macOS, Python 3.10+. Optional: ein Chromium-Browser
+(Chrome, Brave, Edge) für den PDF-Export.
+
+**1. Repository klonen und Abhängigkeiten installieren:**
 
 ```sh
 git clone https://github.com/antallpt/note.git
@@ -15,22 +20,33 @@ python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
 ```
 
-## Starten
+**2. Den `note`-Befehl einrichten** — einen Alias in die Shell-Konfiguration
+eintragen (im geklonten Ordner ausführen; für Bash `~/.bashrc` statt
+`~/.zshrc`):
 
 ```sh
-./note vorlesung-01     # öffnet vorlesung-01.md – wird angelegt, falls nicht vorhanden
-./note pfad/zur/datei.md
-./note                  # öffnet ./Notizen.md
+echo "alias note='\"$PWD/note\"'" >> ~/.zshrc
+source ~/.zshrc
 ```
 
-Ohne Dateiendung wird automatisch `.md` angehängt.
-
-Praktisch: Alias in `~/.zshrc` eintragen, dann funktioniert `note datei`
-aus jedem Verzeichnis:
+**3. Ausprobieren** — die Beispielnotiz öffnen:
 
 ```sh
-alias note='"/pfad/zu/notiz/note"'
+note beispiel/Beispiel.md
 ```
+
+## Benutzung
+
+Der `note`-Befehl funktioniert aus jedem Verzeichnis:
+
+```sh
+note vorlesung-01        # öffnet vorlesung-01.md – wird angelegt, falls nicht vorhanden
+note bs/kapitel-2.md     # Unterordner werden bei Bedarf mit angelegt
+note                     # öffnet ./Notizen.md
+```
+
+Ohne Dateiendung wird automatisch `.md` angehängt. Ohne Alias geht auch
+immer `./note datei` direkt aus dem Projektordner.
 
 ## Tastenkürzel
 
