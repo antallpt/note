@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import logging
 import os
 import re
 import shlex
@@ -38,6 +39,12 @@ def _import_image_widget():
     Terminal ohnehin kein Grafikprotokoll kann, schlucken wir die Abfragen
     dort und landen direkt beim Halfcell-Rendering.
     """
+    # Warnungen von textual-image (z.B. Zellgrößen-Fallback) nie auf stderr
+    # ausgeben – sie würden nach dem Beenden im Terminal-Verlauf stehen.
+    ti_logger = logging.getLogger("textual_image")
+    ti_logger.addHandler(logging.NullHandler())
+    ti_logger.propagate = False
+
     if (
         os.environ.get("TERM_PROGRAM") == "Apple_Terminal"
         and sys.__stdout__ is not None
@@ -45,6 +52,10 @@ def _import_image_widget():
     ):
 
         class _QuietTTY(io.TextIOBase):
+            """Schluckt Schreibzugriffe (Escape-Abfragen), reicht aber den
+            echten Terminal-Deskriptor durch, damit ioctl-Abfragen wie die
+            Zellgröße weiterhin funktionieren."""
+
             def __init__(self, fd: int) -> None:
                 self._fd = fd
 
@@ -60,15 +71,13 @@ def _import_image_widget():
             def fileno(self) -> int:
                 return self._fd
 
-        null = open(os.devnull, "w")
         real_stdout = sys.__stdout__
-        sys.__stdout__ = _QuietTTY(null.fileno())
+        sys.__stdout__ = _QuietTTY(real_stdout.fileno())
         try:
             from textual_image.renderable import Image as renderable
             from textual_image.widget import Image as widget
         finally:
             sys.__stdout__ = real_stdout
-            null.close()
         return renderable, widget
     from textual_image.renderable import Image as renderable
     from textual_image.widget import Image as widget
