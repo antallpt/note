@@ -9,8 +9,8 @@ Live-Vorschau rechts mit gerenderten Tabellen und Bildern. Gebaut mit
 ## Installation
 
 ```sh
-git clone https://github.com/antallpt/notiz.git
-cd notiz
+git clone https://github.com/antallpt/note.git
+cd note
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
 ```
