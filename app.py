@@ -248,6 +248,9 @@ class NotizApp(App):
         margin: 0;
         padding: 0;
     }
+    Footer {
+        scrollbar-size: 0 0;
+    }
     Toast {
         width: auto;
         min-width: 20;
@@ -310,11 +313,13 @@ class NotizApp(App):
         # eingaben (auch Drag & Drop-Pfade) nicht im Editor.
         preview = VerticalScroll(id="preview")
         preview.can_focus = False
+        footer = Footer()
+        footer.compact = True
         yield Header()
         with Horizontal(id="panes"):
             yield editor
             yield preview
-        yield Footer()
+        yield footer
 
     def on_mount(self) -> None:
         self.register_theme(LIGHT_THEME)

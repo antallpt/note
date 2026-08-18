@@ -36,6 +36,10 @@ async def main() -> None:
         app.action_toggle_preview()
         assert not app.query_one("#preview").can_focus, "Vorschau darf keinen Fokus nehmen"
 
+        from textual.widgets import Footer
+        footer = app.query_one(Footer)
+        assert footer.styles.scrollbar_size_horizontal == 0, "Footer-Scrollbar wuerde die Shortcuts verdecken"
+
         # Tabellen erweitern/verkleinern: Cursor in die eingefuegte Tabelle setzen
         editor.move_cursor((header_row + 2, 2))
         before_lines = editor.document.line_count
