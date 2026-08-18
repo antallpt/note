@@ -112,6 +112,15 @@ async def main() -> None:
         await pilot.press("ctrl+y")
         assert editor.text == "abcx", "Ctrl+Y hat nicht wiederhergestellt"
 
+        # Extra-Leerzeilen werden zu sichtbarem Abstand
+        editor.load_text("eins\n\n\n\nzwei")
+        await pilot.pause(1.2)
+        spacers = list(app.query(".spacer"))
+        assert spacers, "Kein Abstandshalter fuer Extra-Leerzeilen in der Vorschau"
+        assert int(spacers[0].styles.height.value) == 2, spacers[0].styles.height
+        md_out = app._md_for_export("eins\n\n\n\nzwei")
+        assert "<br><br>" in md_out, f"Leerzeilen im Export nicht erhalten: {md_out!r}"
+
         # PDF-Export (nur wenn ein Chrome-Browser vorhanden ist)
         from app import CHROME_PATHS
         if any(Path(p).is_file() for p in CHROME_PATHS):

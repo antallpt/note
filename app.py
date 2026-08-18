@@ -179,7 +179,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 @page {{ margin: 1.5cm; }}
 body {{ font-family: -apple-system, 'Helvetica Neue', sans-serif; color: #1f1f1f;
        max-width: 720px; margin: 0 auto; line-height: 1.5; font-size: 11pt; }}
-h1 {{ font-size: 1.5em; }}
+h1 {{ font-size: 1.5em; text-align: center; }}
 h2 {{ font-size: 1.25em; }}
 h3 {{ font-size: 1.1em; }}
 h1, h2, h3 {{ color: #111111; margin: 0.8em 0 0.35em; break-after: avoid; }}
@@ -357,7 +357,19 @@ class NotizApp(App):
                     widgets.append(Markdown("\n".join(buffer)))
                     buffer.clear()
 
+            blank_run = 0
             for line in text.splitlines():
+                if not line.strip():
+                    blank_run += 1
+                    buffer.append("")
+                    continue
+                if blank_run > 1:
+                    # Extra-Leerzeilen als sichtbaren Abstand erhalten
+                    flush()
+                    spacer = Static("", classes="spacer")
+                    spacer.styles.height = blank_run - 1
+                    widgets.append(spacer)
+                blank_run = 0
                 match = IMAGE_LINE.match(line)
                 if match and Image is not None and "://" not in match.group(2):
                     raw = match.group(2).strip().replace("\\ ", " ")
@@ -463,7 +475,8 @@ class NotizApp(App):
             self.notify("PDF-Vorschau aus", timeout=2)
 
     def _md_for_export(self, text: str) -> str:
-        """Bildpfade URL-tauglich machen (Leerzeichen etc. encodieren)."""
+        """Bildpfade URL-tauglich machen und Extra-Leerzeilen als Abstand
+        erhalten (Markdown würde sie sonst zu einem Umbruch kollabieren)."""
         lines = []
         for line in text.splitlines():
             match = IMAGE_LINE.match(line)
@@ -472,7 +485,20 @@ class NotizApp(App):
                 lines.append(f"![{match.group(1)}]({quote(raw, safe='/')})")
             else:
                 lines.append(line)
-        return "\n".join(lines)
+        out: list[str] = []
+        run = 0
+        for line in lines:
+            if not line.strip():
+                run += 1
+                continue
+            if run:
+                out.append("")
+                if run > 1:
+                    out.append("<br>" * (run - 1))
+                    out.append("")
+                run = 0
+            out.append(line)
+        return "\n".join(out)
 
     async def _export_pdf(self, open_after: bool) -> None:
         chrome = next((p for p in CHROME_PATHS if Path(p).is_file()), None)
