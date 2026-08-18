@@ -175,14 +175,15 @@ CHROME_PATHS = [
 ]
 
 # Grau-Palette nach der Tailwind-"Neutral"-Skala (reines Grau, kein Blaustich).
-# Hierarchie: H1 am dunkelsten, dann abgestuft heller bis zum Fließtext.
-# Kontraste auf Weiß (WCAG): H1 17,9:1 · H2 10,4:1 · H3 7,8:1 · Text 4,7:1 (AA).
+# Hierarchie: Titel dunkelgrau (#262626), Unterüberschriften abgestuft,
+# Fließtext hellgrau (#737373), Tabellenkopf als Zwischenstufe (#525252).
+# Kontraste auf Weiß (WCAG): H1 15,1:1 · H2 10,4:1 · H3 7,8:1 · Text 4,7:1 (AA).
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>{title}</title><style>
 @page {{ margin: 1.5cm; }}
 body {{ font-family: -apple-system, 'Helvetica Neue', sans-serif; color: #737373;
        max-width: 720px; margin: 0 auto; line-height: 1.5; font-size: 11pt; }}
-h1 {{ font-size: 1.5em; text-align: center; color: #171717; }}
+h1 {{ font-size: 1.5em; text-align: center; color: #262626; }}
 h2 {{ font-size: 1.25em; color: #404040; }}
 h3 {{ font-size: 1.1em; color: #525252; }}
 h1, h2, h3 {{ margin: 0.8em 0 0.35em; break-after: avoid; }}
@@ -192,7 +193,7 @@ a {{ color: #525252; }}
 li::marker {{ color: #a3a3a3; }}
 table {{ border-collapse: collapse; margin: 0.7em 0; break-inside: avoid; }}
 th, td {{ border: 1px solid #d4d4d4; padding: 0.3em 0.6em; text-align: left; }}
-th {{ background: #f5f5f5; color: #262626; }}
+th {{ background: #f5f5f5; color: #525252; }}
 tr:nth-child(even) td {{ background: #fafafa; }}
 img {{ max-width: 100%; max-height: 10cm; width: auto; height: auto;
       display: block; margin: 0.5em 0; break-inside: avoid; }}
