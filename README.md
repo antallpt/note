@@ -1,20 +1,20 @@
 # note
 
-Markdown-Notizen im Terminal: Editor links (normale Navigation, kein Vim),
-Live-Vorschau rechts mit gerenderten Tabellen und Bildern, Live-PDF-Export.
-Gebaut mit [Textual](https://textual.textualize.io).
+Markdown notes in the terminal: editor on the left (regular navigation, no vim),
+live preview on the right with rendered tables and images, live PDF export.
+Built with [Textual](https://textual.textualize.io).
 
 ![Screenshot](docs/screenshot.png)
 
 ## Installation
 
-Läuft auf **macOS, Linux und Windows**. Voraussetzungen: Python 3.10+.
-Für den PDF-Export ein Chromium-Browser — auf Windows reicht das
-vorinstallierte Edge, auf Linux `chromium`/`google-chrome`, auf macOS
-Chrome/Brave/Edge. Für den Bild-Dialog (Ctrl+G) auf Linux: `zenity` (GNOME)
-oder `kdialog` (KDE) — meist vorinstalliert.
+Runs on **macOS, Linux and Windows**. Requirements: Python 3.10+.
+For the PDF export you need a Chromium browser — on Windows the preinstalled
+Edge is enough, on Linux `chromium`/`google-chrome`, on macOS
+Chrome/Brave/Edge. For the image dialog (Ctrl+G) on Linux: `zenity` (GNOME)
+or `kdialog` (KDE) — usually preinstalled.
 
-**1. Repository klonen und Abhängigkeiten installieren:**
+**1. Clone the repository and install the dependencies:**
 
 macOS / Linux:
 
@@ -34,128 +34,127 @@ py -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 ```
 
-**2. Den `note`-Befehl einrichten:**
+**2. Set up the `note` command:**
 
-macOS / Linux — Alias in die Shell-Konfiguration eintragen (im geklonten
-Ordner ausführen; für Bash `~/.bashrc` statt `~/.zshrc`):
+macOS / Linux — add an alias to your shell config (run this inside the cloned
+folder; use `~/.bashrc` instead of `~/.zshrc` for Bash):
 
 ```sh
 echo "alias note='\"$PWD/note\"'" >> ~/.zshrc
 source ~/.zshrc
 ```
 
-Windows — den Projektordner zum PATH hinzufügen (einmalig, PowerShell im
-geklonten Ordner):
+Windows — add the project folder to your PATH (once, PowerShell inside the
+cloned folder):
 
 ```powershell
 [Environment]::SetEnvironmentVariable("Path", "$env:Path;$PWD", "User")
 ```
 
-Danach funktioniert `note` in jedem neuen Terminal (Windows nutzt dabei
-automatisch `note.cmd`).
+After that, `note` works in every new terminal (Windows automatically uses
+`note.cmd`).
 
-**3. Ausprobieren** — die Beispielnotiz öffnen:
+**3. Try it out** — open the sample note:
 
 ```sh
 note beispiel/Beispiel.md
 ```
 
-## Benutzung
+## Usage
 
-Der `note`-Befehl funktioniert aus jedem Verzeichnis:
+The `note` command works from any directory:
 
 ```sh
-note vorlesung-01        # öffnet vorlesung-01.md – wird angelegt, falls nicht vorhanden
-note bs/kapitel-2.md     # Unterordner werden bei Bedarf mit angelegt
-note                     # öffnet ./Notizen.md
+note lecture-01        # opens lecture-01.md – created if it doesn't exist
+note os/chapter-2.md   # subfolders are created as needed
+note                   # opens ./Notizen.md
 ```
 
-Ohne Dateiendung wird automatisch `.md` angehängt. Ohne Alias geht auch
-immer `./note datei` direkt aus dem Projektordner.
+Without a file extension, `.md` is appended automatically. Without the alias,
+`./note file` always works directly from the project folder.
 
-## Tastenkürzel
+## Keyboard shortcuts
 
-| Kürzel  | Aktion                          |
-|---------|---------------------------------|
-| Ctrl+S  | Speichern (rendert die Vorschau neu) |
-| Ctrl+Q  | Speichern & Beenden             |
-| Ctrl+R  | Vorschau ein-/ausblenden        |
-| Ctrl+T  | Tabellen-Gerüst einfügen        |
-| Ctrl+N  | Tabellenzeile hinzufügen        |
-| Ctrl+O  | Tabellenzeile entfernen         |
-| Ctrl+B  | Tabellenspalte hinzufügen       |
-| Ctrl+F  | Tabellenspalte entfernen        |
-| Ctrl+G  | Bild über Finder-Dialog auswählen |
-| Ctrl+L  | Live-PDF-Vorschau an/aus        |
-| Ctrl+Z / Ctrl+Y | Rückgängig / Wiederherstellen |
-| Ctrl+P  | Befehlspalette (Textual)        |
+| Shortcut | Action                          |
+|---------|----------------------------------|
+| Ctrl+S  | Save (re-renders the preview)    |
+| Ctrl+Q  | Save & quit                      |
+| Ctrl+R  | Toggle the preview               |
+| Ctrl+T  | Insert a table skeleton          |
+| Ctrl+N  | Add a table row                  |
+| Ctrl+O  | Remove a table row               |
+| Ctrl+B  | Add a table column               |
+| Ctrl+F  | Remove a table column            |
+| Ctrl+G  | Pick an image via the file dialog |
+| Ctrl+L  | Toggle the live PDF preview      |
+| Ctrl+Z / Ctrl+Y | Undo / redo              |
+| Ctrl+P  | Command palette (Textual)        |
 
-Die Tabellen-Kürzel wirken auf die Tabelle, in der der Cursor gerade steht.
-Die Vorschau aktualisiert sich zusätzlich automatisch ~0,5 s nach der letzten
-Eingabe.
+The table shortcuts act on the table the cursor is currently in. The preview
+also refreshes automatically ~0.5 s after the last keystroke.
 
-Alle Kürzel sind auch mit Cmd statt Ctrl hinterlegt — das funktioniert aber
-nur in Terminals, die Cmd an Programme durchreichen (Ghostty, kitty, WezTerm).
-Apple Terminal behält Cmd-Kürzel für sich (Cmd+Q würde das Terminal beenden).
+All shortcuts are additionally bound with Cmd instead of Ctrl — but that only
+works in terminals that pass Cmd through to programs (Ghostty, kitty, WezTerm).
+Apple Terminal keeps Cmd shortcuts for itself (Cmd+Q would quit the terminal).
 
-## Tabellen
+## Tables
 
-Ctrl+T fügt ein leeres Tabellen-Gerüst ein (der Cursor landet in der ersten
-Zelle), Ctrl+N/O/B/F ändern Zeilen und Spalten. Tabellen werden beim Schreiben
-**automatisch bündig ausgerichtet** — ~0,5 s nach der letzten Eingabe; der
-Cursor bleibt dabei in seiner Zelle.
+Ctrl+T inserts an empty table skeleton (the cursor lands in the first cell),
+Ctrl+N/O/B/F change rows and columns. Tables are **aligned automatically
+while you write** — ~0.5 s after the last keystroke; the cursor stays in its
+cell.
 
-## Bilder
+## Images
 
-Ein Bild erscheint in der Vorschau, wenn sein Link allein auf einer Zeile steht:
-`![Beschreibung](diagramm.png)` — Pfade relativ zur Notiz-Datei.
+An image appears in the preview when its link sits alone on a line:
+`![Description](diagram.png)` — paths are relative to the note file.
 
-**Ctrl+G öffnet den nativen Datei-Dialog** (macOS: Finder, Linux:
-zenity/kdialog, Windows: Explorer) — Bild auswählen, und es wird an der
-Cursorposition verlinkt (auf eigener Zeile, mit markiertem Titel).
+**Ctrl+G opens the native file dialog** (macOS: Finder, Linux:
+zenity/kdialog, Windows: Explorer) — pick an image and it gets linked at the
+cursor position (on its own line, with the title selected).
 
-Auch **Drag & Drop aus dem Finder** und von Hand getippte Pfade zu
-existierenden Bildern werden automatisch in Links umgewandelt (~0,5 s nach der
-Eingabe). Liegt das Bild im Ordner der Notiz, wird der Link relativ.
+**Drag & drop from Finder** and hand-typed paths to existing images are also
+converted into links automatically (~0.5 s after typing). If the image sits in
+the note's folder, the link is made relative.
 
-Nach dem Verlinken ist der **Titel markiert** (vorbelegt mit dem Dateinamen) —
-einfach lostippen, um ihn zu ersetzen; Pfeiltaste rechts behält ihn. Der Titel
-erscheint in der Vorschau als Bildunterschrift unter dem Bild.
+After linking, the **title is selected** (prefilled with the file name) —
+just start typing to replace it; right arrow keeps it. The title appears in
+the preview as a caption below the image.
 
-Die Darstellungsqualität hängt vom Terminal ab: Apple Terminal und ältere
-Windows-Terminals beherrschen kein Grafikprotokoll, dort werden Bilder als
-farbige Pixelblöcke gerendert — **ein Klick auf ein Bild in der Vorschau
-öffnet es in voller Qualität im Standard-Bildbetrachter.**
-kitty/Ghostty/iTerm2/WezTerm (und Windows Terminal ab 1.22 via Sixel) zeigen
-Bilder direkt scharf an.
+Rendering quality depends on the terminal: Apple Terminal and older Windows
+terminals don't support a graphics protocol, so images are rendered there as
+colored pixel blocks — **clicking an image in the preview opens it in full
+quality in the default image viewer.**
+kitty/Ghostty/iTerm2/WezTerm (and Windows Terminal from 1.22 via Sixel)
+display images sharply right away.
 
-## Live-PDF-Vorschau
+## Live PDF preview
 
-**Ctrl+L** erzeugt neben der Notiz eine PDF-Datei (gleicher Name, `.pdf`) und
-öffnet sie im PDF-Viewer des Systems. Solange die PDF-Vorschau an ist, wird das
-PDF bei jedem Speichern (Ctrl+S) neu erzeugt — der Viewer lädt es automatisch
-neu. Tabellen und Bilder werden dabei in voller Qualität gerendert.
+**Ctrl+L** creates a PDF next to the note (same name, `.pdf`) and opens it in
+the system's PDF viewer. While the PDF preview is on, the PDF is regenerated
+on every save (Ctrl+S) — the viewer reloads it automatically. Tables and
+images are rendered in full quality.
 
-Der Export nutzt einen installierten Chrome/Chromium/Brave/Edge als
-PDF-Renderer (headless; auf Windows wird das vorinstallierte Edge gefunden).
-Das PDF eignet sich auch direkt zum Abgeben oder Teilen. Auf Linux laden
-Evince (GNOME) und Okular (KDE) geänderte PDFs von selbst nach; auf Windows
-empfiehlt sich dafür SumatraPDF.
+The export uses an installed Chrome/Chromium/Brave/Edge as the PDF renderer
+(headless; on Windows the preinstalled Edge is picked up automatically). The
+PDF is also ready to hand in or share as-is. On Linux, Evince (GNOME) and
+Okular (KDE) reload changed PDFs on their own; on Windows, SumatraPDF is
+recommended for that.
 
-Das PDF nutzt eine abgestufte Grau-Palette (Tailwind-„Neutral"-Skala,
-WCAG-AA-geprüft): Haupttitel dunkelgrau (#262626), Unterüberschriften
-abgestuft (#404040, #525252), Fließtext hellgrau (#737373), Tabellenkopf
-als Zwischenstufe (#525252 auf #f5f5f5) mit Zebra-Streifen, dezente graue
-Aufzählungspunkte.
+The PDF uses a graded gray palette (Tailwind "Neutral" scale, WCAG AA
+checked): main title dark gray (#262626), subheadings graded (#404040,
+#525252), body text light gray (#737373), table header as an intermediate
+step (#525252 on #f5f5f5) with zebra stripes, subtle gray bullet points.
 
-Nur macOS: Da Preview.app geänderte PDFs erst beim Fokussieren neu lädt, stupst die App
-das Fenster nach jedem Export kurz an und gibt den Fokus sofort ans Terminal
-zurück (kurzes Flackern). Komplett flackerfrei wird es mit
-[Skim](https://skim-app.sourceforge.io) (`brew install --cask skim`): Ist Skim
-installiert, nutzt die App es automatisch — in den Skim-Einstellungen unter
-„Sync" das automatische Neuladen bei Dateiänderungen aktivieren.
+macOS only: since Preview.app reloads changed PDFs only when it gains focus,
+the app briefly nudges the window after each export and immediately hands
+focus back to the terminal (short flicker). It becomes completely
+flicker-free with [Skim](https://skim-app.sourceforge.io)
+(`brew install --cask skim`): if Skim is installed, the app uses it
+automatically — enable automatic reloading on file changes in Skim's
+settings under "Sync".
 
-## Entwicklung
+## Development
 
-Einstieg: `app.py`. Beispielnotiz: `beispiel/Beispiel.md`.
-Smoke-Test: `./.venv/bin/python smoke_test.py`
+Entry point: `app.py`. Sample note: `beispiel/Beispiel.md`.
+Smoke test: `./.venv/bin/python smoke_test.py`
